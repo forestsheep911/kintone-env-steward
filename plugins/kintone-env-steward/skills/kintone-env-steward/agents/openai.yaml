@@ -1,0 +1,4 @@
+interface:
+  display_name: "kintone-env-Steward (v0.0.16)"
+  short_description: "Analyze kintone and serve local HTML reports"
+  default_prompt: "Use $kintone-env-steward to safely analyze my kintone environment and open a local HTML governance report."

@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.kintone-env-steward/schemas/environment-config.v1.json",
+  "title": "kintone-env-Steward multi-environment contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "engagement",
+    "workflow",
+    "environments"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "activeEnvironmentId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "engagement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "customerAlias",
+        "artifactRoot"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{1,63}$"
+        },
+        "customerAlias": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1,
+          "deprecated": true
+        },
+        "dataClassification": {
+          "deprecated": true,
+          "enum": [
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "artifactRoot": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "sourceEnvironmentId",
+        "experimentEnvironmentIds",
+        "targetEnvironmentId"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "analysis-only",
+            "experiment-cycle"
+          ]
+        },
+        "sourceEnvironmentId": {
+          "type": "string"
+        },
+        "experimentEnvironmentIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "targetEnvironmentId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "environments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/environment"
+      }
+    }
+  },
+  "$defs": {
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "accessMode",
+        "baseUrl",
+        "requiredRole",
+        "credentialRef",
+        "appScope"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{1,63}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "customer-source",
+            "experiment",
+            "customer-target"
+          ]
+        },
+        "accessMode": {
+          "enum": [
+            "read-only",
+            "read-write"
+          ]
+        },
+        "baseUrl": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "requiredRole": {
+          "enum": [
+            "system-administrator",
+            "app-administrator",
+            "read-only"
+          ]
+        },
+        "credentialRef": {
+          "$ref": "#/$defs/credentialRef"
+        },
+        "appScope": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10000,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(\\*|[1-9][0-9]*)$"
+          }
+        }
+      }
+    },
+    "credentialRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method"
+      ],
+      "properties": {
+        "method": {
+          "enum": [
+            "password",
+            "api-token",
+            "client-certificate-password"
+          ]
+        },
+        "usernameEnv": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]+$"
+        },
+        "passwordEnv": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]+$"
+        },
+        "apiTokenEnv": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]+$"
+        },
+        "pfxFilePathEnv": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]+$"
+        },
+        "pfxPasswordEnv": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]+$"
+        }
+      }
+    }
+  }
+}

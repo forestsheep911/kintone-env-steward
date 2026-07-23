@@ -1,0 +1,26 @@
+{
+  "name": "kintone-env-steward",
+  "version": "0.0.16+codex.20260723091548",
+  "description": "Development build v0.0.16 \u2014 local HTML governance reports.",
+  "author": {
+    "name": "cybozush"
+  },
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "kintone-env-Steward (v0.0.16)",
+    "shortDescription": "Development v0.0.16 \u2014 local HTML reports.",
+    "longDescription": "Development build v0.0.16. Analyze scoped Apps, generate a structured local HTML governance report, and serve it on a loopback-only report site.",
+    "developerName": "cybozush",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read"
+    ],
+    "defaultPrompt": [
+      "Use $kintone-env-steward to help me configure and analyze a kintone environment.",
+      "Use $kintone-env-steward to inspect a customer source environment without changing it.",
+      "Use $kintone-env-steward to plan experiments across three isolated kintone environments."
+    ]
+  }
+}

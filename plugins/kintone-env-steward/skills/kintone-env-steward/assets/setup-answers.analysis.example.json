@@ -1,0 +1,11 @@
+{
+  "mode": "analysis-only",
+  "customerAlias": "customer-a",
+  "source": {
+    "baseUrl": "https://customer-source.example.invalid",
+    "appScope": "123,456",
+    "credentialPrefix": "CUSTOMER_SOURCE_ADMIN",
+    "includeAttachments": false,
+    "retentionDays": 30
+  }
+}

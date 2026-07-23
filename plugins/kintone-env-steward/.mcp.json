@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "kintone-official": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@kintone/mcp-server@1.9.0"
+      ],
+      "env_vars": [
+        "KINTONE_BASE_URL",
+        "KINTONE_USERNAME",
+        "KINTONE_PASSWORD",
+        "KINTONE_API_TOKEN",
+        "KINTONE_BASIC_AUTH_USERNAME",
+        "KINTONE_BASIC_AUTH_PASSWORD",
+        "KINTONE_PFX_FILE_PATH",
+        "KINTONE_PFX_FILE_PASSWORD",
+        "KINTONE_ATTACHMENTS_DIR",
+        "HTTPS_PROXY"
+      ],
+      "enabled_tools": [
+        "kintone-get-app",
+        "kintone-get-apps",
+        "kintone-get-form-fields",
+        "kintone-get-form-layout",
+        "kintone-get-process-management",
+        "kintone-get-app-deploy-status",
+        "kintone-get-general-settings"
+      ],
+      "default_tools_approval_mode": "prompt",
+      "startup_timeout_sec": 30,
+      "tool_timeout_sec": 60
+    }
+  }
+}

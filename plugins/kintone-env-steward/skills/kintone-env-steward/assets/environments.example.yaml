@@ -1,0 +1,25 @@
+schemaVersion: "1.0"
+activeEnvironmentId: customer-source
+engagement:
+  id: customer-governance-001
+  customerAlias: customer-a
+  artifactRoot: outputs/kintone-env-steward/customer-governance-001
+workflow:
+  mode: analysis-only
+  sourceEnvironmentId: customer-source
+  experimentEnvironmentIds: []
+  targetEnvironmentId: null
+environments:
+  -
+    id: customer-source
+    label: Customer environment for read-only analysis
+    kind: customer-source
+    accessMode: read-only
+    baseUrl: "https://customer-source.example.invalid"
+    requiredRole: system-administrator
+    credentialRef:
+      method: password
+      usernameEnv: CUSTOMER_SOURCE_ADMIN_USERNAME
+      passwordEnv: CUSTOMER_SOURCE_ADMIN_PASSWORD
+    appScope:
+      - "123"

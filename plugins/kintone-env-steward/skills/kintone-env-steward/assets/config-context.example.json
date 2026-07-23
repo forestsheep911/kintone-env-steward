@@ -1,0 +1,6 @@
+{
+  "uiMode": "auto",
+  "customerAlias": "customer-a",
+  "baseUrl": "https://example.cybozu.com",
+  "appScope": ["123"]
+}

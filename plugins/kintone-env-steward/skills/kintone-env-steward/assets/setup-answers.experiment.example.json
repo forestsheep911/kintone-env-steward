@@ -1,0 +1,33 @@
+{
+  "mode": "experiment-cycle",
+  "customerAlias": "customer-a",
+  "source": {
+    "baseUrl": "https://customer-source.example.invalid",
+    "appScope": "123,456",
+    "credentialPrefix": "CUSTOMER_SOURCE_ADMIN",
+    "includeAttachments": false,
+    "retentionDays": 30
+  },
+  "labs": [
+    {
+      "id": "lab-1",
+      "baseUrl": "https://lab-1.example.invalid",
+      "credentialPrefix": "LAB1_ADMIN"
+    },
+    {
+      "id": "lab-2",
+      "baseUrl": "https://lab-2.example.invalid",
+      "credentialPrefix": "LAB2_ADMIN"
+    },
+    {
+      "id": "lab-3",
+      "baseUrl": "https://lab-3.example.invalid",
+      "credentialPrefix": "LAB3_ADMIN"
+    }
+  ],
+  "target": {
+    "sameAsSource": true,
+    "credentialPrefix": "CUSTOMER_SOURCE_ADMIN"
+  }
+}
+
