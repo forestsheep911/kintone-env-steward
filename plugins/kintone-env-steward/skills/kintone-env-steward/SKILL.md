@@ -9,21 +9,33 @@ Default to read-only inspection. Treat configuration and schema as the primary
 governance subject; use record data only as a scoped, preferably aggregated
 supporting signal.
 
-Version `0.0.16` includes an adaptive loopback-only React configuration
+Version `0.0.17` includes an adaptive loopback-only React configuration
 workspace with direct local credential entry, the
 terminal/chat wizard, multi-environment governance, and the allowlisted
 `kintone-official` MCP server for configuration discovery, including read-only
 App enumeration for `*` scopes. Use only its exposed read tools. Do not bypass
 the allowlist or start another instance with broader tools.
 
-After a successful snapshot or assessment, generate a local HTML report site
-instead of handing back only Markdown. Run
-`scripts/build-report-site.mjs --snapshot <run>/snapshot.json --output
-<run>/report-site`, then start
+For a configured read-only analysis, run the deterministic pipeline instead of
+assembling a snapshot ad hoc:
+
+`node scripts/analyze-environment.mjs --workspace <active-workspace>
+--environment <exact-id>`
+
+It validates the selected environment and local credentials, uses only the
+allowlisted official MCP read tools, expands `*`, collects each App with partial
+failure isolation, writes a versioned snapshot, and builds the report site.
+Then start
 `scripts/report-ui-server.mjs --site <run>/report-site --port 4318`. Keep the
 configuration console on 4317 and the report on 4318. Tell the user the exact
 report URL. Read [report-site.md](references/report-site.md) when creating or
 serving a report.
+
+Treat users, organizations, and groups as first-class governance subjects. Read
+[identity-governance.md](references/identity-governance.md) before collecting
+or evaluating identities. Version 0.0.17 reserves identity coverage in the
+snapshot and report but must label it `not-collected`; never imply that identity
+governance was assessed.
 
 ## Load the environment contract
 
@@ -152,6 +164,8 @@ write path.
   interfaces.
 - Record source, target, collection time, and limitations.
 - Keep observed facts distinct from inference.
+- Record user, organization, and group coverage explicitly even when the
+  current collector cannot access it.
 
 Read [governance-model.md](references/governance-model.md) when designing a
 snapshot, rule, finding, exception, or output contract.

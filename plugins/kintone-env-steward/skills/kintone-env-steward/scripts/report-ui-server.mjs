@@ -34,7 +34,7 @@ const server = http.createServer(async (request, response) => {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
     });
-    response.end(JSON.stringify({ status: "ok", version: "0.0.16", siteRoot }));
+    response.end(JSON.stringify({ status: "ok", version: "0.0.17", siteRoot }));
     return;
   }
 
@@ -66,7 +66,7 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(port, "127.0.0.1", () => {
-  console.log("kintone-env-Steward v0.0.16 local report");
+  console.log("kintone-env-Steward v0.0.17 local report");
   console.log(`URL: http://127.0.0.1:${port}`);
   console.log(`Site: ${siteRoot}`);
 });

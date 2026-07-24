@@ -53,7 +53,7 @@ node skills/kintone-env-steward/scripts/setup-environments.mjs
 该文件包含客户与环境元数据，默认被 `.gitignore` 忽略。可以从插件中的
 `assets/environments.example.yaml` 复制一份开始配置。
 
-`activeEnvironmentId` 表示当前 Codex 任务连接的环境。`0.0.16` 中，官方 MCP 仍从
+`activeEnvironmentId` 表示当前 Codex 任务连接的环境。`0.0.17` 中，官方 MCP 仍从
 通用的 `KINTONE_BASE_URL` 和认证环境变量启动；它们必须指向 active environment。
 环境专用的 credential references 为后续 profile launcher 和确定性脚本准备。
 
@@ -106,6 +106,6 @@ node skills/kintone-env-steward/scripts/validate-environments.mjs <配置路径>
 
 ## 当前执行边界
 
-`0.0.16` 使用 YAML 环境契约，以环境访问模式自动推导流程，并建立 App ID 列表/区间表达式、单环境选择器、自适应本地配置工作台、聊天预填、权限变更弹窗、直接凭据录入、HTML 报告站点、向导、验证和工作流边界。官方 MCP 工具面仍保持只读，因此即使实验环境
+`0.0.17` 使用 YAML 环境契约，以环境访问模式自动推导流程，并建立 App ID 列表/区间表达式、单环境选择器、自适应本地配置工作台、聊天预填、权限变更弹窗、直接凭据录入、一键只读快照、HTML 报告站点、向导、验证和工作流边界。官方 MCP 工具面仍保持只读，因此即使实验环境
 配置允许写入，本版也只会生成试行计划，不会执行。后续确定性脚本或分环境写入工具
 必须同时满足配置授权、当次用户审批和写后复核。

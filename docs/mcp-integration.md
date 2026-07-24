@@ -2,7 +2,7 @@
 
 ## 版本与定位
 
-`0.0.16` 固定使用 `@kintone/mcp-server@1.9.0`。官方 MCP 是首批配置采集和自然语言
+`0.0.17` 固定使用 `@kintone/mcp-server@1.9.0`。官方 MCP 是首批配置采集和自然语言
 交互的适配器，不是环境快照、治理规则或 Diff 的事实模型。
 
 ## 启用的工具
@@ -20,7 +20,7 @@
 记录查询、记录写入、状态更新、字段修改、布局修改、App 部署和空间写入工具均未在
 本版开放。
 
-`0.0.16` 使用 `kintone-get-apps` 把 `*` 范围解析成明确 App ID，再逐 App 调用其余
+`0.0.17` 使用 `kintone-get-apps` 把 `*` 范围解析成明确 App ID，再逐 App 调用其余
 只读工具。API Token 模式下，官方 MCP 可能不注册环境级 App 清单工具；因此 `*`
 范围目前要求使用具备相应读取权限的用户名/密码认证。空间工具仍不在 allowlist。
 
@@ -50,7 +50,7 @@ KINTONE_API_TOKEN=
 
 ## 安全边界
 
-- `enabled_tools` 是 `0.0.16` 的主要工具面限制。
+- `enabled_tools` 是 `0.0.17` 的主要工具面限制。
 - `KINTONE_ALLOW_CHANGES=false` 是 Steward 的策略信号，不会改变官方 MCP 自身行为。
 - 仍应使用最小权限账户或 Token，并优先连接测试环境。
 - Skill 指令是工作流约束，不替代凭据权限和工具 allowlist。

@@ -1,7 +1,7 @@
 {
   "name": "kintone-env-steward-config-ui",
   "private": true,
-  "version": "0.0.16",
+  "version": "0.0.17",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",

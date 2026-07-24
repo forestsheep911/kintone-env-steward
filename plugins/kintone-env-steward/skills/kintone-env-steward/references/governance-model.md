@@ -13,12 +13,17 @@ A snapshot should include:
 - `target` with domain identifier and scoped App IDs
 - `sources` with method, status, and limitations
 - `assets` for spaces, Apps, owners, and lifecycle metadata
+- `identity_coverage` for users, organizations, groups, collection status, and
+  limitations
 - `configurations` for fields, layouts, views, processes, permissions,
   customizations, plugins, Webhooks, and integrations
 - `unknowns` for requested but unavailable evidence
 
 Never embed credentials. Avoid record payloads unless the user explicitly
 scopes a data-health check; prefer aggregates.
+
+Read [identity-governance.md](identity-governance.md) before designing identity
+findings or collecting user, organization, or group evidence.
 
 ## Finding
 

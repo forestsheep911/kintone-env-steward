@@ -228,6 +228,15 @@ export function buildReportModel(snapshot) {
       limitations:
         snapshot.sources?.flatMap(({ limitations = [] }) => limitations) ?? [],
       unknownCount: snapshot.unknowns?.length ?? 0,
+      identityCoverage: snapshot.identity_coverage ?? {
+        status: "not-collected",
+        users: null,
+        organizations: null,
+        groups: null,
+        limitations: [
+          "Users, organizations, and groups were not present in this snapshot.",
+        ],
+      },
     },
     metrics: {
       appCount: apps.length,

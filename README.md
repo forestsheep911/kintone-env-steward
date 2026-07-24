@@ -4,7 +4,7 @@
 它帮助管理员、交付团队和支持团队看清环境现状，发现配置偏差与长期风险，并把
 整改工作变成可审阅、可验证、可追踪的计划。
 
-当前版本是开发版（`0.0.16`）。它提供基于 React、Vite 和 shadcn 组件结构的自适应
+当前版本是开发版（`0.0.17`）。它提供基于 React、Vite 和 shadcn 组件结构的自适应
 本地配置工作台，不需要手工编辑配置文件。简单任务只显示必要字段；多环境、证书、
 或实施目标等复杂任务会自动显示完整设置。聊天中已经确认的非敏感信息可以在
 启动时预填，用户名和密码仍只在本机页面中录入。只读分析完成后会生成独立的
@@ -43,6 +43,7 @@ kintone 很容易从少量 App 快速成长为业务关键系统，但环境长�
 核心关注：
 
 - 环境、空间和 App 清单；
+- 用户、组织、组、服务账号与管理员身份；
 - 字段、布局、视图、流程管理与权限；
 - 自定义 JavaScript/CSS、插件、Webhook 与外部集成；
 - App 所有者、用途、生命周期、重复与废弃风险；
@@ -86,7 +87,7 @@ kintone 很容易从少量 App 快速成长为业务关键系统，但环境长�
 ## 开发状态
 
 已完成 Git 仓库、Codex 插件基础结构、单一入口治理 skill、治理对象与安全边界，
-并接入 kintone 官方 MCP `1.9.0` 的只读配置工具集。v0.0.16 的本地配置工作台支持
+并接入 kintone 官方 MCP `1.9.0` 的只读配置工具集。v0.0.17 的本地配置工作台支持
 直接输入账号信息；真实值保存到 git-ignored 的本机文件，环境契约使用更易读的 YAML：
 
 ```powershell
@@ -99,5 +100,14 @@ node plugins/kintone-env-steward/skills/kintone-env-steward/scripts/config-ui-se
 治理运行生成 `snapshot.json` 后，插件会在同一运行目录创建 `report-site/`，并在
 `http://127.0.0.1:4318` 展示。报告只包含治理证据和结构信息，不包含凭据或记录内容。
 
-下一步建议完善权限、视图、JavaScript/CSS、Webhook 和插件配置采集，再增加 App
-间 schema diff、历史快照对比和报告中的证据下钻。
+`0.0.17` 提供可重复的一键只读分析入口：
+
+```powershell
+node plugins/kintone-env-steward/skills/kintone-env-steward/scripts/analyze-environment.mjs `
+  --workspace . `
+  --environment customer-source
+```
+
+身份治理已进入快照契约，但 `0.0.17` 仍明确标记为未采集。下一步建议完善用户、
+组织、组、权限、视图、JavaScript/CSS、Webhook 和插件配置采集，再增加 App 间
+schema diff、历史快照对比和报告中的证据下钻。

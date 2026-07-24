@@ -579,13 +579,13 @@ const server = createServer(async (request, response) => {
   const url = new URL(request.url, `http://${host}:${port}`);
   try {
     if (request.method === "GET" && url.pathname === "/api/health") {
-      sendJson(response, 200, { status: "ok", version: "0.0.16" });
+      sendJson(response, 200, { status: "ok", version: "0.0.17" });
       return;
     }
     if (request.method === "GET" && url.pathname === "/api/meta") {
       const { config, exists } = await readConfig();
       sendJson(response, 200, {
-        version: "0.0.16",
+        version: "0.0.17",
         workspace,
         configPath,
         credentialsPath,
@@ -674,7 +674,7 @@ server.listen(port, host, async () => {
     launchPath,
     `${JSON.stringify(
       {
-        version: "0.0.16",
+        version: "0.0.17",
         pid: process.pid,
         url: `http://${host}:${port}`,
         workspace,
@@ -685,7 +685,7 @@ server.listen(port, host, async () => {
     )}\n`,
     "utf8",
   );
-  console.log(`kintone-env-Steward v0.0.16 configuration console`);
+  console.log(`kintone-env-Steward v0.0.17 configuration console`);
   console.log(`URL: http://${host}:${port}`);
   console.log(`Workspace: ${workspace}`);
   console.log(`Config: ${configPath}`);

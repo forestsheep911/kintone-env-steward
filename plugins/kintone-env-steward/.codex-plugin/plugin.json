@@ -1,16 +1,16 @@
 {
   "name": "kintone-env-steward",
-  "version": "0.0.16+codex.20260723091548",
-  "description": "Development build v0.0.16 \u2014 local HTML governance reports.",
+  "version": "0.0.17",
+  "description": "Development build v0.0.17 \u2014 repeatable read-only analysis pipeline.",
   "author": {
     "name": "cybozush"
   },
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
-    "displayName": "kintone-env-Steward (v0.0.16)",
-    "shortDescription": "Development v0.0.16 \u2014 local HTML reports.",
-    "longDescription": "Development build v0.0.16. Analyze scoped Apps, generate a structured local HTML governance report, and serve it on a loopback-only report site.",
+    "displayName": "kintone-env-Steward (v0.0.17)",
+    "shortDescription": "Development v0.0.17 \u2014 one-command analysis.",
+    "longDescription": "Development build v0.0.17. Run a repeatable read-only App inventory and schema collection pipeline, generate a versioned snapshot and local HTML report, and reserve identity-governance coverage for users, organizations, and groups.",
     "developerName": "cybozush",
     "category": "Productivity",
     "capabilities": [

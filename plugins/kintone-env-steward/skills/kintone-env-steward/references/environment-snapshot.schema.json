@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.kintone-env-steward/schemas/environment-snapshot.v0.2.json",
+  "title": "kintone-env-Steward read-only environment snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "collected_at",
+    "target",
+    "sources",
+    "assets",
+    "configurations",
+    "deployment",
+    "identity_coverage",
+    "unknowns"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.2"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "collected_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "environment_id",
+        "alias",
+        "base_url",
+        "access_mode",
+        "app_scope"
+      ],
+      "properties": {
+        "environment_id": { "type": "string", "minLength": 1 },
+        "alias": { "type": "string", "minLength": 1 },
+        "base_url": { "type": "string", "pattern": "^https://" },
+        "access_mode": { "enum": ["read-only", "read-write"] },
+        "app_scope": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["method", "status", "tools", "limitations"],
+        "properties": {
+          "method": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["complete", "partial", "failed"] },
+          "tools": {
+            "type": "array",
+            "items": { "type": "string" },
+            "uniqueItems": true
+          },
+          "limitations": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "assets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apps"],
+      "properties": {
+        "apps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["appId", "name"],
+            "properties": {
+              "appId": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+              "name": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "configurations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fields", "layout", "process", "general"],
+        "properties": {
+          "fields": { "type": ["object", "null"] },
+          "layout": { "type": ["object", "null"] },
+          "process": { "type": ["object", "null"] },
+          "general": { "type": ["object", "null"] }
+        }
+      }
+    },
+    "deployment": {
+      "type": "object"
+    },
+    "identity_coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "users", "organizations", "groups", "limitations"],
+      "properties": {
+        "status": { "enum": ["not-collected", "partial", "complete"] },
+        "users": { "type": ["array", "null"] },
+        "organizations": { "type": ["array", "null"] },
+        "groups": { "type": ["array", "null"] },
+        "limitations": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "error"],
+        "properties": {
+          "appId": { "type": "string" },
+          "source": { "type": "string" },
+          "error": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -85,7 +85,7 @@ function render(report) {
           <div class="brand-mark">ks</div>
           <div>
             <div class="brand-name">kintone-env-Steward</div>
-            <div class="brand-version">Local governance report · v0.0.16</div>
+            <div class="brand-version">Local governance report · v0.0.17</div>
           </div>
         </div>
         <nav class="header-nav" aria-label="报告章节">
@@ -217,6 +217,8 @@ function render(report) {
             <h3>本次未覆盖</h3>
             <ul>
               ${report.source.limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+              <li>身份主体：${escapeHtml(report.source.identityCoverage.status)}（用户、组织、组）</li>
+              ${report.source.identityCoverage.limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
             </ul>
           </article>
         </div>

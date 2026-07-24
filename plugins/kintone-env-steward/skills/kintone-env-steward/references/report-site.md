@@ -1,6 +1,14 @@
 # Local HTML report
 
-Build a report site after a successful governance snapshot:
+Prefer the complete read-only pipeline:
+
+```text
+node scripts/analyze-environment.mjs \
+  --workspace <active-workspace> \
+  --environment <exact-environment-id>
+```
+
+To rebuild only the report site from an existing snapshot:
 
 ```text
 node scripts/build-report-site.mjs \
