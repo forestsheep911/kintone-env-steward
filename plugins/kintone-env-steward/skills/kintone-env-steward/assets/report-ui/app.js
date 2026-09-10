@@ -69,6 +69,9 @@ function appDetail(app) {
         <li>Space：${escapeHtml(app.spaceId || "不属于 Space")}</li>
         <li>标题字段：${escapeHtml(app.settings.titleField || "自动")}</li>
         <li>子表 ${app.subtableCount} 个；附件字段 ${app.attachmentCount} 个</li>
+        ${app.audit.views !== null ? `<li>后台审计：视图 ${app.audit.views}、图表 ${app.audit.graphs}、App 权限规则 ${app.audit.appPermissionRules}、记录权限规则 ${app.audit.recordPermissionRules}、字段权限规则 ${app.audit.fieldPermissionRules}</li>` : "<li>后台设置 REST 审计未启用</li>"}
+        ${app.audit.views !== null ? `<li>自定义文件 ${app.audit.customizationFileCount} 个；插件 ${app.audit.pluginCount} 个；管理员备注：${app.audit.adminNotePresent ? "有" : "无"}</li>` : ""}
+        ${app.audit.views !== null ? `<li>通知规则 ${app.audit.notificationRuleCount} 条；Action ${app.audit.actionCount} 个</li>` : ""}
         ${process}
         ${relationships}
         ${flags}
@@ -91,6 +94,7 @@ function render(report) {
         <nav class="header-nav" aria-label="报告章节">
           <a href="#overview">概览</a>
           <a href="#findings">发现</a>
+          <a href="#systems">业务系统候选</a>
           <a href="#map">功能地图</a>
           <a href="#apps">App 清单</a>
           <a href="#coverage">覆盖范围</a>
@@ -125,6 +129,8 @@ function render(report) {
           [report.metrics.spaceCount, "涉及 Space"],
           [report.metrics.processCount, "启用流程"],
           [report.metrics.relationshipCount, "显式 App 关系"],
+          [report.metrics.businessBlockCandidateCount, "业务块候选"],
+          [report.metrics.confirmedBusinessSystemCount, "已确认业务系统"],
           [report.findings.length, "治理发现"],
         ]
           .map(
@@ -156,6 +162,23 @@ function render(report) {
             )
             .join("")}
         </div>
+      </section>
+
+      <section class="section" id="systems">
+        <div class="section-head">
+          <div><p class="section-kicker">SYSTEM CANDIDATES</p><h2>业务系统候选</h2></div>
+          <p class="section-note">仅显式 App 关系可形成高置信系统群；同一 Space 仅作为低置信讨论线索，不代表实际业务系统。</p>
+        </div>
+        <div class="category-grid">
+          ${report.systemClusters.candidates.length ? report.systemClusters.candidates.map((candidate) => `
+            <article class="category-card">
+              <div class="category-count">${candidate.apps.length}</div>
+              <h3>${escapeHtml(candidate.name || (candidate.kind === "connected-system" ? "显式关联群" : "Space 候选群"))} <span class="badge ${candidate.confidence === "high" ? "success" : "low"}">${candidate.confidence === "high" ? "高置信" : "低置信"}</span> <span class="badge">${candidate.status === "confirmed" ? "已确认" : candidate.status === "excluded" ? "已排除" : "待确认"}</span></h3>
+              <p class="section-note">${escapeHtml(candidate.evidence.join("；"))}</p>
+              <div class="category-apps">${candidate.apps.map(({ id, name }) => `<span class="app-chip">#${escapeHtml(id)} ${escapeHtml(name)}</span>`).join("")}</div>
+            </article>`).join("") : '<article class="coverage-card"><p>未发现由 schema 关系支持的多 App 系统候选。</p></article>'}
+        </div>
+        <p class="section-note">未归入候选群的单体 App：${report.systemClusters.standalone_app_ids.length} 个。${escapeHtml(report.systemClusters.basis)}</p>
       </section>
 
       <section class="section" id="map">

@@ -13,6 +13,7 @@ function option(name) {
 }
 
 const snapshotPath = path.resolve(option("--snapshot") ?? "");
+const businessSystemMapPath = option("--business-system-map") ? path.resolve(option("--business-system-map")) : null;
 if (!option("--snapshot")) {
   console.error("Usage: build-report-site.mjs --snapshot <snapshot.json> [--output <dir>]");
   process.exit(2);
@@ -26,7 +27,8 @@ const templateDir = path.resolve(scriptDir, "../assets/report-ui");
 
 try {
   const snapshot = JSON.parse(await readFile(snapshotPath, "utf8"));
-  const report = buildReportModel(snapshot);
+  const businessSystemMap = businessSystemMapPath ? JSON.parse(await readFile(businessSystemMapPath, "utf8")) : null;
+  const report = buildReportModel(snapshot, { businessSystemMap });
   await mkdir(outputDir, { recursive: true });
   await cp(templateDir, outputDir, { recursive: true });
   await writeFile(

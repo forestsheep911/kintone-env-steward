@@ -19,6 +19,11 @@ A snapshot should include:
   customizations, plugins, Webhooks, and integrations
 - `unknowns` for requested but unavailable evidence
 
+For UI-derived evidence, include the observed management path, collector or
+bundle version when known, collection time, and a clear `ui-derived` source
+classification. Keep directory/capacity evidence separate from published-App
+configuration evidence.
+
 Never embed credentials. Avoid record payloads unless the user explicitly
 scopes a data-health check; prefer aggregates.
 

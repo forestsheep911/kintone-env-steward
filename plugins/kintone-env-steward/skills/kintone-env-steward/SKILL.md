@@ -31,6 +31,25 @@ configuration console on 4317 and the report on 4318. Tell the user the exact
 report URL. Read [report-site.md](references/report-site.md) when creating or
 serving a report.
 
+The current deterministic pipeline covers the published-App configuration layer.
+When an engagement explicitly requires all management-visible Apps, capacity, or
+system-governance evidence, read
+[admin-ui-derived-collection.md](references/admin-ui-derived-collection.md).
+Use its three-layer model and safety rules. The management-page adapters are
+explicitly opt-in with `--include-admin-ui`; mark their output as experimental
+`ui-derived` evidence. They write only to the current run directory and report
+unavailable resources as partial coverage.
+
+Use `--include-app-settings` to add the official REST audit of views, graphs,
+customization, permissions, notifications, actions, App plug-ins, and App admin
+notes. Store summaries only; Webhook settings remain a coverage gap until a
+reviewed UI-derived adapter exists.
+
+For an initial business-system view across Apps, read
+[App 业务系统候选聚类](references/app-system-clustering.md). Treat clusters as
+reviewable inferences: explicit schema links are strong evidence, while Space
+co-location is only a weak discussion cue.
+
 Treat users, organizations, and groups as first-class governance subjects. Read
 [identity-governance.md](references/identity-governance.md) before collecting
 or evaluating identities. Version 0.0.17 reserves identity coverage in the

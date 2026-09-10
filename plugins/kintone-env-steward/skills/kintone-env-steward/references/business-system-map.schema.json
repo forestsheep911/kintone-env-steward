@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.kintone-env-steward/schemas/business-system-map.v0.1.json",
+  "title": "kintone business system map",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "environment_id", "generated_from_run", "systems", "unassigned_app_ids"],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "environment_id": { "type": "string" },
+    "generated_from_run": { "type": "string" },
+    "systems": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "candidate_kind", "confidence", "name", "owner", "criticality", "lifecycle", "app_ids", "evidence", "policy"],
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "enum": ["candidate", "confirmed", "excluded"] },
+          "candidate_kind": { "enum": ["connected-system", "space-cohort"] },
+          "confidence": { "enum": ["high", "medium", "low"] },
+          "name": { "type": ["string", "null"] },
+          "owner": { "type": ["string", "null"] },
+          "criticality": { "enum": ["unknown", "low", "medium", "high", "critical"] },
+          "lifecycle": { "enum": ["unknown", "production", "test", "legacy", "retiring"] },
+          "app_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
+          "evidence": { "type": "array", "items": { "type": "string" } },
+          "policy": { "type": "object", "additionalProperties": false, "required": ["allow_everyone_record_delete", "exception_notes"], "properties": { "allow_everyone_record_delete": { "type": ["boolean", "null"] }, "exception_notes": { "type": ["string", "null"] } } }
+        }
+      }
+    },
+    "unassigned_app_ids": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+  }
+}

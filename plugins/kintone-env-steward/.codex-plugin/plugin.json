@@ -1,6 +1,6 @@
 {
   "name": "kintone-env-steward",
-  "version": "0.0.17",
+  "version": "0.0.17+codex.20260811065849",
   "description": "Development build v0.0.17 \u2014 repeatable read-only analysis pipeline.",
   "author": {
     "name": "cybozush"

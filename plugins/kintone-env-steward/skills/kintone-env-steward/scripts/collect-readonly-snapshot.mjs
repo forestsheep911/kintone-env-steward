@@ -5,6 +5,8 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
 import { parseYaml } from "./yaml-lite.mjs";
+import { collectAdminUiDerived } from "./collect-admin-ui-derived.mjs";
+import { collectAppSettingsAudit } from "./collect-app-settings-audit.mjs";
 
 const MCP_PACKAGE = "@kintone/mcp-server@1.9.0";
 const ALLOWED_TOOLS = new Set([
@@ -32,10 +34,12 @@ function option(name) {
 const workspace = path.resolve(option("--workspace") ?? process.cwd());
 const environmentId = option("--environment");
 const requestedOutput = option("--output");
+const includeAdminUi = args.includes("--include-admin-ui");
+const includeAppSettings = args.includes("--include-app-settings");
 const concurrency = Number(option("--concurrency") ?? "4");
 if (!environmentId || !Number.isInteger(concurrency) || concurrency < 1 || concurrency > 10) {
   console.error(
-    "Usage: collect-readonly-snapshot.mjs --environment <id> [--workspace <dir>] [--output <dir>] [--concurrency 1-10]",
+    "Usage: collect-readonly-snapshot.mjs --environment <id> [--workspace <dir>] [--output <dir>] [--concurrency 1-10] [--include-admin-ui] [--include-app-settings]",
   );
   process.exit(2);
 }
@@ -332,9 +336,28 @@ async function main() {
       apps.map(({ appId }) => String(appId)),
       unknowns,
     );
+    let appSettingsAudit = null;
+    if (includeAppSettings) {
+      if (!saved.username || !saved.password) throw new Error("App-setting REST audit requires locally configured username and password");
+      const authorization = Buffer.from(`${saved.username}:${saved.password}`, "utf8").toString("base64");
+      appSettingsAudit = await collectAppSettingsAudit({ baseUrl: environment.baseUrl, authorization, appIds: apps.map(({ appId }) => String(appId)), concurrency: Math.min(concurrency, 4) });
+      unknowns.push(...appSettingsAudit.unknowns);
+      for (const [appId, audit] of Object.entries(appSettingsAudit.byApp)) configurations[appId].audit = audit;
+    }
+    let adminUiCoverage = null;
+    if (includeAdminUi) {
+      try {
+        adminUiCoverage = await collectAdminUiDerived({ workspace, environmentId, outputDir });
+        if (adminUiCoverage.status !== "complete") {
+          unknowns.push({ source: "admin-ui-derived", error: "One or more UI-derived administration resources were unavailable" });
+        }
+      } catch (error) {
+        unknowns.push({ source: "admin-ui-derived", error: error.message });
+      }
+    }
     const status = unknowns.length ? "partial" : "complete";
     const snapshot = {
-      schema_version: "0.2",
+      schema_version: "0.4",
       run_id: runId,
       collected_at: new Date().toISOString(),
       target: {
@@ -355,6 +378,7 @@ async function main() {
             "Users, organizations, and groups are reserved in the snapshot but not collected in version 0.0.17.",
           ],
         },
+        ...(includeAppSettings ? [{ method: "kintone-public-rest-app-settings", status: appSettingsAudit.unknowns.length ? "partial" : "complete", tools: Object.keys(appSettingsAudit.byApp[Object.keys(appSettingsAudit.byApp)[0]] ?? {}), limitations: ["Webhook settings are not covered by the public App REST API catalog.", "Customization file bodies, notification recipients, permission principal identifiers, and administrator-note bodies are not persisted."] }] : []),
       ],
       assets: { apps },
       configurations,
@@ -368,6 +392,7 @@ async function main() {
           "User lifecycle, organization hierarchy, group purpose, membership, and administrator concentration are not collected in version 0.0.17.",
         ],
       },
+      admin_ui_coverage: adminUiCoverage,
       unknowns,
     };
     await mkdir(outputDir, { recursive: true });

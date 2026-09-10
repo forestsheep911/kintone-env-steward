@@ -108,6 +108,10 @@ node plugins/kintone-env-steward/skills/kintone-env-steward/scripts/analyze-envi
   --environment customer-source
 ```
 
+若要补充管理页可见的全量 App 目录、容量和管理页覆盖状态，可显式增加
+`--include-admin-ui`。该层通过经审查的内部只读适配器采集，并在快照中标记为
+`ui-derived`；它不替代官方 MCP/REST 的已发布配置采集。
+
 身份治理已进入快照契约，但 `0.0.17` 仍明确标记为未采集。下一步建议完善用户、
 组织、组、权限、视图、JavaScript/CSS、Webhook 和插件配置采集，再增加 App 间
 schema diff、历史快照对比和报告中的证据下钻。

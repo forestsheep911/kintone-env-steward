@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://local.kintone-env-steward/schemas/environment-snapshot.v0.2.json",
+  "$id": "https://local.kintone-env-steward/schemas/environment-snapshot.v0.4.json",
   "title": "kintone-env-Steward read-only environment snapshot",
   "type": "object",
   "additionalProperties": false,
@@ -18,7 +18,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "0.2"
+      "const": "0.4"
     },
     "run_id": {
       "type": "string",
@@ -100,7 +100,8 @@
           "fields": { "type": ["object", "null"] },
           "layout": { "type": ["object", "null"] },
           "process": { "type": ["object", "null"] },
-          "general": { "type": ["object", "null"] }
+          "general": { "type": ["object", "null"] },
+          "audit": { "type": "object" }
         }
       }
     },
@@ -121,6 +122,10 @@
           "items": { "type": "string" }
         }
       }
+    },
+    "admin_ui_coverage": {
+      "description": "Optional experimental UI-derived administration coverage. See admin-ui-derived-snapshot.schema.json.",
+      "type": ["object", "null"]
     },
     "unknowns": {
       "type": "array",

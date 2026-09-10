@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.kintone-env-steward/schemas/app-system-clusters.v0.1.json",
+  "title": "kintone App system-cluster candidates",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "basis", "candidates", "standalone_app_ids"],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "basis": { "type": "string" },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "confidence", "app_ids", "evidence"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "enum": ["connected-system", "space-cohort"] },
+          "confidence": { "enum": ["high", "medium", "low"] },
+          "app_ids": { "type": "array", "items": { "type": "string" }, "minItems": 2, "uniqueItems": true },
+          "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+        }
+      }
+    },
+    "standalone_app_ids": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+  }
+}
