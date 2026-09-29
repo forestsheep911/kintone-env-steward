@@ -26,7 +26,7 @@
         "required": ["key", "status", "collectedAt"],
         "properties": {
           "key": { "type": "string" },
-          "status": { "enum": ["complete", "partial", "failed"] },
+          "status": { "enum": ["not-collected", "complete", "partial", "forbidden", "request-failed", "parse-failed", "unsupported", "failed"] },
           "collectedAt": { "type": "string" },
           "data": {},
           "reusedFrom": { "type": ["string", "null"] }

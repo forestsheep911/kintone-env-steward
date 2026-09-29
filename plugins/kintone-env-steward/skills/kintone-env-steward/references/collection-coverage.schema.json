@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.kintone-env-steward/schemas/collection-coverage.v1.json",
+  "type": "object",
+  "required": ["version", "resources"],
+  "properties": {
+    "version": { "const": 1 },
+    "resources": { "type": "array", "items": {
+      "type": "object", "required": ["key", "status"],
+      "properties": {
+        "key": { "type": "string" },
+        "status": { "enum": ["not-collected", "complete", "partial", "forbidden", "request-failed", "parse-failed", "unsupported", "failed"] },
+        "collected_at": { "type": "string" },
+        "reused_from": { "type": ["string", "null"] },
+        "error": { "type": ["string", "null"] }
+      }
+    } }
+  }
+}

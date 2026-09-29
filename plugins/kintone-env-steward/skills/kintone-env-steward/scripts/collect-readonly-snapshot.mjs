@@ -5,8 +5,10 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
 import { parseYaml } from "./yaml-lite.mjs";
-import { collectAdminUiDerived } from "./collect-admin-ui-derived.mjs";
-import { collectAppSettingsAudit } from "./collect-app-settings-audit.mjs";
+import { collectAdminUiDerived, ADMIN_RESOURCE_KEYS } from "./collect-admin-ui-derived.mjs";
+import { collectAppSettingsAudit, ENDPOINTS } from "./collect-app-settings-audit.mjs";
+import { persistedInventory, INVENTORY_KEY } from "./collect-inventory.mjs";
+import { CollectionError, safeFailure, sourceStatus } from "./collection-runtime.mjs";
 import { ScanStore, databasePath } from "./scan-store.mjs";
 import { randomUUID } from "node:crypto";
 
@@ -114,6 +116,7 @@ function startMcp(extraEnvironment) {
   let stderr = "";
   let nextId = 1;
   const pending = new Map();
+  let stopped = false;
 
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", (value) => {
@@ -141,26 +144,31 @@ function startMcp(extraEnvironment) {
       else waiter.resolve(message.result);
     }
   });
-  child.on("exit", (code) => {
+  const rejectPending = () => {
+    stopped = true;
     for (const { reject, timer } of pending.values()) {
       clearTimeout(timer);
-      reject(new Error(`Official MCP exited unexpectedly with code ${code}`));
+      reject(new CollectionError("request-failed", "Official MCP process stopped"));
     }
     pending.clear();
-  });
+  };
+  child.on("exit", rejectPending);
+  child.on("error", rejectPending);
+  child.stdin.on("error", rejectPending);
 
   function send(message) {
     child.stdin.write(`${JSON.stringify(message)}\n`);
   }
   function request(method, params = {}, timeoutMs = 60_000) {
+    if (stopped) return Promise.reject(new CollectionError("request-failed", "Official MCP process stopped"));
     const id = nextId++;
-    send({ jsonrpc: "2.0", id, method, params });
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         pending.delete(id);
-        reject(new Error(`Official MCP timed out during ${method}`));
+        reject(new CollectionError("request-failed", `Official MCP timed out during ${method}`));
       }, timeoutMs);
       pending.set(id, { resolve, reject, timer });
+      send({ jsonrpc: "2.0", id, method, params });
     });
   }
   async function callTool(name, toolArguments) {
@@ -176,9 +184,17 @@ function startMcp(extraEnvironment) {
       const message =
         result.content?.find(({ type }) => type === "text")?.text ??
         `Official MCP tool failed: ${name}`;
-      throw new Error(message);
+      throw new CollectionError(/(?:403|401|CB_NO02|GAIA_NO01)/.test(message) ? "forbidden" : "request-failed", "Official MCP tool failed");
     }
-    return extractStructured(result);
+    const data = extractStructured(result);
+    if (!data || typeof data !== "object" || data.text) throw new CollectionError("parse-failed", "Unrecognized MCP response");
+    const expected = { "kintone-get-apps": "apps", "kintone-get-app-deploy-status": "apps", "kintone-get-form-layout": "layout" }[name];
+    if ((expected && !Array.isArray(data[expected])) ||
+        (name === "kintone-get-form-fields" && (!data.properties || typeof data.properties !== "object")) ||
+        (name === "kintone-get-process-management" && typeof data.enable !== "boolean")) {
+      throw new CollectionError("parse-failed", "Unrecognized MCP configuration shape");
+    }
+    return data;
   }
   async function initialize() {
     await request("initialize", {
@@ -204,36 +220,6 @@ function startMcp(extraEnvironment) {
   return { initialize, callTool, close, diagnostic };
 }
 
-async function collectApps(callTool, appScope) {
-  if (!appScope.includes("*")) {
-    const apps = [];
-    for (const ids of chunk(appScope, 100)) {
-      const page = await callTool("kintone-get-apps", { ids, limit: 100 });
-      apps.push(...(page.apps ?? []));
-    }
-    const returned = new Set(apps.map(({ appId }) => String(appId)));
-    const missing = appScope.filter((id) => !returned.has(id));
-    return {
-      apps,
-      unknowns: missing.map((appId) => ({
-        appId,
-        source: "app-inventory",
-        error: "Configured App ID was not returned by kintone-get-apps",
-      })),
-    };
-  }
-
-  const apps = [];
-  for (let offset = 0; ; offset += 100) {
-    const page = await callTool("kintone-get-apps", { offset, limit: 100 });
-    const received = page.apps ?? [];
-    apps.push(...received);
-    console.log(`Inventory: ${apps.length} App(s)`);
-    if (received.length < 100) break;
-  }
-  return { apps, unknowns: [] };
-}
-
 async function collectDeployment(callTool, appIds, unknowns) {
   const results = [];
   for (const apps of chunk(appIds, 300)) {
@@ -243,7 +229,7 @@ async function collectDeployment(callTool, appIds, unknowns) {
     } catch (error) {
       unknowns.push({
         source: "deployment",
-        error: error.message,
+        error: safeFailure(error),
       });
     }
   }
@@ -293,9 +279,11 @@ async function main() {
       appScope: environment.appScope, includeAdminUi, includeAppSettings }, option("--resume-from"));
   } catch (error) { store.close(); throw error; }
   const mcp = startMcp(authEnvironment);
-  const callTool = (name, toolArguments) => store.capture(run,
+  let resourceRun = run;
+  const callTool = (name, toolArguments) => store.capture(resourceRun,
     `mcp:${name}:${JSON.stringify(toolArguments)}`, () => mcp.callTool(name, toolArguments));
   try {
+    store.plan(runId, [INVENTORY_KEY, "rest:phase", ...ADMIN_RESOURCE_KEYS.map((key) => `admin-ui:${key}`)]);
     console.log(`Environment: ${environment.id} (${environment.label})`);
     console.log(`Boundary: ${environment.accessMode}; records: not collected`);
     const available = await mcp.initialize();
@@ -311,10 +299,17 @@ async function main() {
       );
     }
 
-    const inventory = await collectApps(callTool, environment.appScope);
+    const recovered = await persistedInventory(store, run, mcp.callTool, environment.appScope);
+    const inventory = recovered.inventory;
+    resourceRun = recovered.effectiveRun;
     const apps = inventory.apps;
     const unknowns = inventory.unknowns;
     const configurations = {};
+    store.plan(runId, apps.flatMap(({ appId }) => [
+      ...Object.values(CONFIG_TOOLS).map(([name, makeArguments]) => `mcp:${name}:${JSON.stringify(makeArguments(String(appId)))}`),
+      ...Object.keys(ENDPOINTS).map((key) => `rest:${appId}:${key}`),
+    ]));
+    for (const ids of chunk(apps.map(({ appId }) => String(appId)), 300)) store.plan(runId, [`mcp:kintone-get-app-deploy-status:${JSON.stringify({ apps: ids })}`]);
     let completed = 0;
 
     for (const batch of chunk(apps, concurrency)) {
@@ -328,7 +323,7 @@ async function main() {
                 unknowns.push({
                   appId: String(appId),
                   source: key,
-                  error: error.message,
+                  error: safeFailure(error),
                 });
                 return [key, null];
               }
@@ -346,11 +341,13 @@ async function main() {
       apps.map(({ appId }) => String(appId)),
       unknowns,
     );
+    const mcpStatus = unknowns.length ? "partial" : "complete";
     let appSettingsAudit = null;
     if (includeAppSettings) {
       if (!saved.username || !saved.password) throw new Error("App-setting REST audit requires locally configured username and password");
       const authorization = Buffer.from(`${saved.username}:${saved.password}`, "utf8").toString("base64");
-      appSettingsAudit = await collectAppSettingsAudit({ baseUrl: environment.baseUrl, authorization, appIds: apps.map(({ appId }) => String(appId)), concurrency: Math.min(concurrency, 4), capture: (key, collect) => store.capture(run, key, collect) });
+      appSettingsAudit = await collectAppSettingsAudit({ baseUrl: environment.baseUrl, authorization, appIds: apps.map(({ appId }) => String(appId)), concurrency: Math.min(concurrency, 4), capture: (key, collect) => store.capture(resourceRun, key, collect) });
+      store.save(runId, "rest:phase", appSettingsAudit.unknowns.length ? "partial" : "complete", null);
       unknowns.push(...appSettingsAudit.unknowns);
       for (const [appId, audit] of Object.entries(appSettingsAudit.byApp)) configurations[appId].audit = audit;
     }
@@ -366,12 +363,13 @@ async function main() {
         }
       } catch (error) {
         store.save(runId, "admin-ui:summary", "failed", null);
-        unknowns.push({ source: "admin-ui-derived", error: error.message });
+        unknowns.push({ source: "admin-ui-derived", error: safeFailure(error) });
       }
     }
     const status = unknowns.length ? "partial" : "complete";
     const snapshot = {
-      schema_version: "0.4",
+      schema_version: "0.5",
+      coverage: { version: 1, resources: store.resources(runId) },
       run_id: runId,
       collected_at: new Date().toISOString(),
       target: {
@@ -384,7 +382,7 @@ async function main() {
       sources: [
         {
           method: MCP_PACKAGE,
-          status,
+          status: mcpStatus,
           tools: [...requiredTools],
           limitations: [
             "No record payloads collected.",
@@ -393,6 +391,8 @@ async function main() {
           ],
         },
         ...(includeAppSettings ? [{ method: "kintone-public-rest-app-settings", status: appSettingsAudit.unknowns.length ? "partial" : "complete", tools: Object.keys(appSettingsAudit.byApp[Object.keys(appSettingsAudit.byApp)[0]] ?? {}), limitations: ["Webhook settings are not covered by the public App REST API catalog.", "Customization file bodies, notification recipients, permission principal identifiers, and administrator-note bodies are not persisted."] }] : []),
+        ...(!includeAppSettings ? [{ method: "kintone-public-rest-app-settings", status: "not-collected", tools: [], limitations: ["App settings audit was not enabled."] }] : []),
+        { method: "admin-ui-derived", status: sourceStatus(store.resources(runId), "admin-ui:"), tools: includeAdminUi ? ADMIN_RESOURCE_KEYS : [], limitations: ["Experimental UI-derived summaries; unsupported resources are explicit coverage gaps."] },
       ],
       assets: { apps },
       configurations,

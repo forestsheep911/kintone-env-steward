@@ -233,7 +233,9 @@ function render(report) {
               <li>App 清单、字段、布局与一般设置</li>
               <li>流程管理与显式 App 关系</li>
               <li>部署状态</li>
-              <li>采集失败：${report.source.unknownCount} 项</li>
+              <li>问题记录：${report.source.unknownCount} 项（含覆盖缺口）</li>
+              ${(report.source.collectionSources ?? []).map(({ method, status }) => `<li>${escapeHtml(method)}：${escapeHtml(status)}</li>`).join("")}
+              ${Object.entries(report.source.coverageCounts ?? {}).map(([status, count]) => `<li>${escapeHtml(({ complete: "完成", partial: "部分覆盖", "not-collected": "未采集", forbidden: "无权限或认证失败", "request-failed": "请求失败", "parse-failed": "解析失败", unsupported: "不支持", failed: "失败（旧版）" })[status] ?? status)}：${count} 项</li>`).join("")}
             </ul>
           </article>
           <article class="coverage-card">

@@ -1,4 +1,5 @@
-const ENDPOINTS = {
+import { readResponse, safeFailure } from "./collection-runtime.mjs";
+export const ENDPOINTS = {
   views: "app/views", graphs: "app/reports", customization: "app/customize",
   app_permissions: "app/acl", record_permissions: "record/acl", field_permissions: "field/acl",
   general_notifications: "app/notifications/general", per_record_notifications: "app/notifications/perRecord",
@@ -46,16 +47,15 @@ export function summarize(key, value) {
 export async function collectAppSettingsAudit({ baseUrl, authorization, appIds, concurrency = 4, capture = (_key, collect) => collect() }) {
   const fetchSetting = async (appId, key, endpoint) => {
     const url = new URL(`/k/v1/${endpoint}.json`, baseUrl); url.searchParams.set("app", appId);
-    const response = await fetch(url, { headers: { "X-Cybozu-Authorization": authorization } });
-    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-    return summarize(key, await response.json());
+    const response = await readResponse(url, { headers: { "X-Cybozu-Authorization": authorization } });
+    return summarize(key, JSON.parse(response.text));
   };
   const byApp = {}, unknowns = [];
   for (let index = 0; index < appIds.length; index += concurrency) {
     await Promise.all(appIds.slice(index, index + concurrency).map(async (appId) => {
       const results = await Promise.all(Object.entries(ENDPOINTS).map(async ([key, endpoint]) => {
         try { return [key, await capture(`rest:${appId}:${key}`, () => fetchSetting(appId, key, endpoint))]; }
-        catch (error) { unknowns.push({ appId, source: `rest-${key}`, error: error.message }); return [key, null]; }
+        catch (error) { unknowns.push({ appId, source: `rest-${key}`, error: safeFailure(error) }); return [key, null]; }
       }));
       byApp[appId] = Object.fromEntries(results);
     }));

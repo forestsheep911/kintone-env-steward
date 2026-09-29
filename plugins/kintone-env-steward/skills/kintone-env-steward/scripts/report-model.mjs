@@ -396,6 +396,8 @@ export function buildReportModel(snapshot, { businessSystemMap = null } = {}) {
       limitations:
         snapshot.sources?.flatMap(({ limitations = [] }) => limitations) ?? [],
       unknownCount: snapshot.unknowns?.length ?? 0,
+      collectionSources: snapshot.sources?.map(({ method, status }) => ({ method, status })) ?? [],
+      coverageCounts: Object.fromEntries((snapshot.coverage?.resources ?? []).filter(({ key }) => !key.endsWith(":summary") && !key.endsWith(":phase")).reduce((counts, { status }) => counts.set(status, (counts.get(status) ?? 0) + 1), new Map())),
       identityCoverage: snapshot.identity_coverage ?? {
         status: "not-collected",
         users: null,

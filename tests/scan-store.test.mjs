@@ -31,9 +31,9 @@ test("durable partial collection resumes in a new isolated run and exports snaps
     const snapshot = { run_id: "second", assets: { apps: [] } };
     store.finish("second", "complete", snapshot);
     assert.deepEqual(store.snapshot("second"), snapshot);
-    assert.equal(store.resources("first").find((r) => r.key === "layout:1").status, "failed");
+    assert.equal(store.resources("first").find((r) => r.key === "layout:1").status, "request-failed");
     assert.equal(store.resources("second").find((r) => r.key === "fields:1").reused_from, "first");
-    assert.equal(store.db.prepare("SELECT error FROM resources WHERE status='failed'").get().error.includes("secret"), false);
+    assert.equal(store.db.prepare("SELECT error FROM resources WHERE status='request-failed'").get().error.includes("secret"), false);
     assert.throws(() => store.start("second", target), /UNIQUE/);
   } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
 });

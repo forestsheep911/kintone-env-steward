@@ -5,6 +5,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseYaml } from "./yaml-lite.mjs";
+import { readResponse, failureStatus, safeFailure } from "./collection-runtime.mjs";
 
 const SAFE_RESOURCES = [
   { key: "app_directory", method: "GET", path: "/k/api/dev/app/mgmt/exportCsv.do?manuallyFetched=false" },
@@ -31,6 +32,7 @@ const SAFE_RESOURCES = [
   { key: "org_access_control", method: "GET", path: "/admin/orgAccessControl" },
   { key: "administrators", method: "GET", path: "/admin/administrators" },
 ];
+export const ADMIN_RESOURCE_KEYS = SAFE_RESOURCES.map(({ key }) => key);
 
 const JSON_FIELDS = {
   system_customization: ["active", "executable", "scripts"],
@@ -265,13 +267,10 @@ export async function collectAdminUiDerived({ workspace, environmentId, outputDi
   if (!saved.username || !saved.password) throw new Error("UI-derived collection requires locally configured username and password");
   const authorization = Buffer.from(`${saved.username}:${saved.password}`, "utf8").toString("base64");
   const request = async (resource) => {
-    const response = await fetch(new URL(resource.path, environment.baseUrl), {
+    return readResponse(new URL(resource.path, environment.baseUrl), {
       method: resource.method, headers: { "X-Cybozu-Authorization": authorization, "Content-Type": "application/json" },
       body: resource.method === "POST" ? "{}" : undefined, redirect: "manual"
     });
-    const text = await response.text();
-    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-    return { status: response.status, text, contentType: response.headers.get("content-type") ?? "" };
   };
 
   const unknowns = [], coverage = [];
@@ -347,18 +346,18 @@ export async function collectAdminUiDerived({ workspace, environmentId, outputDi
         common = { ...(common ?? {}), security_audit: { ...(common?.security_audit ?? {}), api_token_coverage: "page-reachable-no-reviewed-list-parser" } };
         unknowns.push({ source: "api_tokens", error: "API token administration page is reachable, but no reviewed token-list parser is implemented" });
       }
-      const status = ["system_admin", "api_tokens"].includes(resource.key) ? "partial" : "complete";
+      const status = resource.key === "api_tokens" ? "unsupported" : resource.key === "system_admin" ? "partial" : "complete";
       coverage.push({ resource: resource.key, status, response_shape: resource.key.includes("admin") ? "HTML or reviewed JSON" : "CSV or JSON" });
       checkpoint(resource.key, status, { app_directory: resource.key === "app_directory" ? directory : null,
         capacity: resource.key === "app_capacity" ? capacity : null, system_admin: system, common_admin: common });
     } catch (error) {
-      coverage.push({ resource: resource.key, status: "unavailable" });
-      unknowns.push({ source: resource.key, error: error.message });
-      checkpoint(resource.key, "failed", null);
+      coverage.push({ resource: resource.key, status: failureStatus(error) });
+      unknowns.push({ source: resource.key, error: safeFailure(error) });
+      checkpoint(resource.key, failureStatus(error), null);
     }
   }
   if (directory) directory.capacity = capacity;
-  const snapshot = { schema_version: "0.1", source: "ui-derived", collected_at: new Date().toISOString(), status: unknowns.length ? "partial" : "complete", coverage, app_directory: directory, system_admin: system, common_admin: common, unknowns };
+  const snapshot = { schema_version: "0.2", source: "ui-derived", collected_at: new Date().toISOString(), status: unknowns.length ? "partial" : "complete", coverage, app_directory: directory, system_admin: system, common_admin: common, unknowns };
   await mkdir(outputDir, { recursive: true });
   await writeFile(path.join(outputDir, "admin-ui-derived.json"), `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
   return snapshot;

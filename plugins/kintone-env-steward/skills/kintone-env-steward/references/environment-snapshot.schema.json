@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://local.kintone-env-steward/schemas/environment-snapshot.v0.4.json",
+  "$id": "https://local.kintone-env-steward/schemas/environment-snapshot.v0.5.json",
   "title": "kintone-env-Steward read-only environment snapshot",
   "type": "object",
   "additionalProperties": false,
@@ -10,6 +10,7 @@
     "collected_at",
     "target",
     "sources",
+    "coverage",
     "assets",
     "configurations",
     "deployment",
@@ -17,8 +18,9 @@
     "unknowns"
   ],
   "properties": {
+    "coverage": { "$ref": "collection-coverage.schema.json" },
     "schema_version": {
-      "const": "0.4"
+      "const": "0.5"
     },
     "run_id": {
       "type": "string",
@@ -59,7 +61,7 @@
         "required": ["method", "status", "tools", "limitations"],
         "properties": {
           "method": { "type": "string", "minLength": 1 },
-          "status": { "enum": ["complete", "partial", "failed"] },
+          "status": { "enum": ["complete", "partial", "failed", "not-collected"] },
           "tools": {
             "type": "array",
             "items": { "type": "string" },

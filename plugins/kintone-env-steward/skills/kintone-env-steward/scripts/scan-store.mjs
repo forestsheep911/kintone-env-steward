@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
+import { failureStatus, safeFailure } from "./collection-runtime.mjs";
 
 export const databasePath = (workspace) => path.join(workspace, ".kintone-env-steward", "scans.sqlite");
 const canonicalTarget = (target) => JSON.stringify({
@@ -56,13 +57,20 @@ export class ScanStore {
       return data;
     } catch (error) {
       // Do not persist arbitrary server error bodies or credential-bearing URLs.
-      this.save(run.runId, key, "failed", null);
+      this.save(run.runId, key, failureStatus(error), null, undefined, null, safeFailure(error));
       throw error;
     }
   }
-  save(runId, key, status, data, time = new Date().toISOString(), reusedFrom = null) {
+  hasComplete(runId, key) {
+    return Boolean(runId && this.db.prepare("SELECT 1 FROM resources WHERE run_id=? AND key=? AND status='complete'").get(runId, key));
+  }
+  plan(runId, keys) {
+    const insert = this.db.prepare("INSERT OR IGNORE INTO resources VALUES(?,?,'not-collected',?,NULL,NULL,NULL)");
+    for (const key of keys) insert.run(runId, key, new Date().toISOString());
+  }
+  save(runId, key, status, data, time = new Date().toISOString(), reusedFrom = null, error = null) {
     this.db.prepare("INSERT OR REPLACE INTO resources VALUES(?,?,?,?,?,?,?)")
-      .run(runId, key, status, time, JSON.stringify(data), status === "failed" ? "Collection failed; retry required" : null, reusedFrom);
+      .run(runId, key, status, time, JSON.stringify(data), error ?? (status === "failed" ? "Collection failed; retry required" : null), reusedFrom);
   }
   finish(runId, status, snapshot = null) {
     this.db.prepare("UPDATE runs SET status=?,finished_at=?,snapshot=? WHERE id=?")
@@ -72,7 +80,7 @@ export class ScanStore {
     return this.db.prepare("SELECT id,target,started_at,finished_at,status,resumed_from FROM runs ORDER BY started_at DESC").all();
   }
   resources(runId) {
-    return this.db.prepare("SELECT key,status,collected_at,reused_from FROM resources WHERE run_id=? ORDER BY key").all(runId);
+    return this.db.prepare("SELECT key,status,collected_at,reused_from,error FROM resources WHERE run_id=? ORDER BY key").all(runId);
   }
   snapshot(runId) {
     const row = this.db.prepare("SELECT snapshot FROM runs WHERE id=?").get(runId);
