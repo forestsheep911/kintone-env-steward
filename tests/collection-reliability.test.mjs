@@ -48,6 +48,15 @@ test("timeout covers stalled response body and aborts bounded attempts", async (
   assert.ok(signals.every((signal) => signal.aborted));
 });
 
+test("guest-space routing errors remain explicit unsupported evidence without error body", async () => {
+  let calls = 0;
+  await assert.rejects(readResponse("https://fixture.invalid", {}, {
+    fetchImpl: async () => { calls++; return new Response(JSON.stringify({code:'GAIA_IL23', message:'private details'}), {status:400}); },
+    sleep: async () => assert.fail('must not retry'),
+  }), (error) => error.status === 'unsupported' && !error.message.includes('private'));
+  assert.equal(calls, 1);
+});
+
 test("coverage distinguishes unattempted, forbidden, parser and request failures per source", async () => {
   const store = new ScanStore(":memory:");
   try {

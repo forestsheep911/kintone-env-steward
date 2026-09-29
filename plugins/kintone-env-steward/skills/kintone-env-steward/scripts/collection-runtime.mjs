@@ -35,9 +35,13 @@ export async function readResponse(url, init = {}, {
           const seconds = retryAfter == null ? NaN : Number(retryAfter);
           const delay = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(retryAfter) - Date.now();
           if (Number.isFinite(delay)) retryDelay = Math.max(retryDelay, Math.max(0, delay));
-          const error = new CollectionError([401, 403].includes(response.status) ? "forbidden" : "request-failed", `HTTP ${response.status}`, response.status);
+          let guestUnsupported = false;
+          if (response.status === 400) {
+            try { guestUnsupported = (await response.json()).code === "GAIA_IL23"; } catch { /* Preserve HTTP failure classification. */ }
+          }
+          const error = new CollectionError(guestUnsupported ? "unsupported" : [401, 403].includes(response.status) ? "forbidden" : "request-failed", `HTTP ${response.status}`, response.status);
           error.retryable = response.status === 429 || [500, 502, 503, 504].includes(response.status);
-          await response.body?.cancel();
+          if (!response.bodyUsed) await response.body?.cancel();
           throw error;
         }
         return { status: response.status, text: await response.text(), contentType: response.headers.get("content-type") ?? "" };

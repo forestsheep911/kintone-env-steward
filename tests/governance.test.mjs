@@ -2,11 +2,49 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildReportModel } from "../plugins/kintone-env-steward/skills/kintone-env-steward/scripts/report-model.mjs";
 import { deriveSystemClusters } from "../plugins/kintone-env-steward/skills/kintone-env-steward/scripts/derive-system-clusters.mjs";
-import { parseCsv, pageJson, validateJsonResource } from "../plugins/kintone-env-steward/skills/kintone-env-steward/scripts/collect-admin-ui-derived.mjs";
+import { parseCsv, pageJson, validateJsonResource, summarizeCommonLicense, summarizeSharedSettings, summarizeDirectory } from "../plugins/kintone-env-steward/skills/kintone-env-steward/scripts/collect-admin-ui-derived.mjs";
 import { summarize } from "../plugins/kintone-env-steward/skills/kintone-env-steward/scripts/collect-app-settings-audit.mjs";
 
 const fixture = () => ({ target: { environment_id: "A" }, assets: { apps: [{ appId: "1", name: "Fixture" }] }, configurations: { "1": { process: { enable: true }, audit: {} } } });
 const has = (snapshot, id, options) => buildReportModel(snapshot, options).findings.some((finding) => finding.id === id);
+
+test("Japanese directory normalizes reviewed headers and lifecycle/customization flags", () => {
+  const csv = 'ID,アプリ名,ステータス,レコード数,フィールド数,APIトークン数,Webhook数,添付ファイルの合計サイズ（byte）,カスタマイズ,このアプリを参照しているアプリ数\n1,Fixture,運用開始前,0,0,0,0,0,あり,0';
+  const row = parseCsv(csv)[0];
+  assert.equal(row["应用名称"], "Fixture");
+  assert.equal(row["状态"], "未启用");
+  assert.equal(row["自定义"], "有");
+  assert.equal(parseCsv(csv.replace('あり', 'なし'))[0]["自定义"], "无");
+  assert.throws(() => parseCsv(csv.replace('あり', 'unexpected')), /Unrecognized/);
+});
+
+test("common license uses its own reviewed count fields and drops other values", () => {
+  const result = Object.fromEntries(['Guest','MaxGuest','Space','MaxSpace','GuestSpace','MaxGuestSpace','App','MaxApp','Record','MaxRecord','Field','MaxField','ApiRequest','MaxApiRequest'].map((key) => [`count${key}`, '12']));
+  result.secret = 'never-copy';
+  const summary = summarizeCommonLicense({ result });
+  assert.equal(summary.usedAppCount, 12);
+  assert.equal(Object.keys(summary).length, 14);
+  assert.equal(summary.secret, undefined);
+  delete result.countApp;
+  assert.throws(() => summarizeCommonLicense({ result }), /Unrecognized/);
+});
+
+test("missing directory counts retain valid rows and never imply a cleanup candidate", () => {
+  const row = { ID:'1', '应用名称':'Fixture', '状态':'未启用', '自定义':'无', '记录数':'0', '字段数':'0', 'API令牌数':'0', 'Webhook数':'0', '附件的总大小（byte）':'0', '参照了此应用的应用数':'' };
+  const result = summarizeDirectory([row]);
+  assert.equal(result.app_count, 1);
+  assert.equal(result.apps[0].inbound_references, null);
+  assert.equal(result.cleanup_candidate_count, 0);
+  assert.equal(result.missing_numeric_count, 1);
+  row['记录数'] = '';
+  assert.equal(summarizeDirectory([row]).totals.records, null);
+});
+
+test("shared settings reads list settings, retaining explicit false", () => {
+  const settings = { prohibitGrantAppManagementPermissionToEveryoneGroup: false, prohibitGrantExportRecordsPermissionToEveryoneGroup: true };
+  assert.deepEqual(summarizeSharedSettings({ result: { settings } }), { prohibit_everyone_app_management: false, prohibit_everyone_record_export: true });
+  assert.throws(() => summarizeSharedSettings({ result: {} }), /Unrecognized/);
+});
 
 test("REST summaries distinguish empty settings from unrecognized responses", () => {
   for (const key of ["views", "graphs", "app_permissions", "record_permissions", "field_permissions", "actions", "plugins", "general_notifications", "per_record_notifications", "reminder_notifications", "admin_notes", "customization"]) {

@@ -17,7 +17,7 @@ const SAFE_RESOURCES = [
   { key: "guest_capacity", method: "POST", path: "/k/api/guest/countLicense.json" },
   { key: "guest_count", method: "POST", path: "/k/api/guest/count.json" },
   { key: "guest_auth", method: "POST", path: "/k/api/system/guestauth/initialData.json" },
-  { key: "shared_app_settings", method: "POST", path: "/k/api/admin/system/sharedappsettings/initialData.json" },
+  { key: "shared_app_settings", method: "POST", path: "/k/api/admin/system/sharedappsettings/list.json" },
   { key: "system_monitoring", method: "POST", path: "/k/api/monitor/ftsOldestJob.json" },
   { key: "mobile_view", method: "POST", path: "/k/api/system/mobile/initialData.json" },
   { key: "feature_settings", method: "POST", path: "/k/api/system/setting/initialData.json" },
@@ -40,7 +40,7 @@ const JSON_FIELDS = {
   space_capacity: ["maxSpaceCount", "usedSpaceCount", "maxGuestSpaceCount", "usedGuestSpaceCount"],
   guest_capacity: ["countMaxGuest", "countPaid", "countTrial"],
   guest_count: ["count"], guest_auth: ["useTwoStepVerify"],
-  shared_app_settings: ["prohibitGrantAppManagementPermissionToEveryoneGroupEnabled", "prohibitGrantExportRecordsPermissionToEveryoneGroupEnabled"],
+  shared_app_settings: ["settings"],
   system_monitoring: ["delaySeconds"], mobile_view: ["mobileViewType", "mobileViewSelectableByUser"],
   feature_settings: ["featureSetting"], header_appearance: ["headerColorKdsAppliedEnabled"],
   update_options: ["updateOptions", "updateChannel", "newFeatureDisabledByDefault"]
@@ -78,22 +78,37 @@ export function parseCsv(text) {
   if (value || row.length) { row.push(value); rows.push(row); }
   const [headers = [], ...data] = rows;
   headers[0] = headers[0]?.replace(/^\uFEFF/, "");
+  const japaneseColumns = {
+    "アプリ名": "应用名称", "ステータス": "状态", "所属スペース": "所属空间",
+    "レコード数": "记录数", "フィールド数": "字段数", "1日のAPIリクエスト数": "API日访问量",
+    "APIトークン数": "API令牌数", "Webhook数": "Webhook数",
+    "添付ファイルの合計サイズ（byte）": "附件的总大小（byte）", "カスタマイズ": "自定义",
+    "このアプリを参照しているアプリ数": "参照了此应用的应用数"
+  };
+  for (let i = 0; i < headers.length; i++) headers[i] = japaneseColumns[headers[i]] ?? headers[i];
   const required = ["ID", "应用名称", "状态", "记录数", "字段数", "API令牌数", "Webhook数", "附件的总大小（byte）", "自定义", "参照了此应用的应用数"];
   if (!required.every((key) => headers.includes(key))) {
     throw new Error("Unrecognized App directory CSV columns or locale");
   }
   if (data.some((cells) => cells.length !== headers.length)) throw new Error("Malformed App directory CSV row");
-  return data.map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])));
+  return data.map((cells) => {
+    const row = Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""]));
+    if (row["状态"] === "運用開始前") row["状态"] = "未启用";
+    if (row["自定义"] === "あり") row["自定义"] = "有";
+    if (row["自定义"] === "なし") row["自定义"] = "无";
+    if (!["有", "无"].includes(row["自定义"])) throw new Error("Unrecognized directory customization flag");
+    return row;
+  });
 }
 
 function number(cell) {
-  if (cell == null || String(cell).trim() === "") throw new Error("Missing directory numeric value");
+  if (cell == null || String(cell).trim() === "") return null;
   const parsed = Number(String(cell ?? "").replaceAll(",", ""));
   if (!Number.isFinite(parsed) || parsed < 0) throw new Error("Invalid directory numeric value");
   return parsed;
 }
 
-function summarizeDirectory(rows) {
+export function summarizeDirectory(rows) {
   const stateKey = "状态";
   const columns = ["ID", "应用名称", stateKey, "所属空间", "记录数", "字段数", "API日访问量", "API令牌数", "Webhook数", "附件的总大小（byte）", "自定义", "参照了此应用的应用数"];
   const states = Object.fromEntries(rows.reduce((counts, row) => {
@@ -102,6 +117,9 @@ function summarizeDirectory(rows) {
     return counts;
   }, new Map()));
   const value = (row, key) => number(row[key]);
+  const numericColumns = ["记录数", "字段数", "API令牌数", "Webhook数", "附件的总大小（byte）", "参照了此应用的应用数"];
+  const missingNumericCount = rows.reduce((sum, row) => sum + numericColumns.filter((key) => value(row, key) === null).length, 0);
+  const total = (key) => rows.some((row) => value(row, key) === null) ? null : rows.reduce((sum, row) => sum + value(row, key), 0);
   const candidates = rows.filter((row) => {
     const state = row[stateKey];
     return state === "未启用" && value(row, "字段数") === 0 && value(row, "记录数") === 0 && value(row, "API令牌数") === 0 && value(row, "参照了此应用的应用数") === 0 && String(row["自定义"] ?? "").trim() !== "有";
@@ -109,13 +127,11 @@ function summarizeDirectory(rows) {
   return {
     columns: columns.filter((key) => rows.some((row) => key in row)),
     app_count: rows.length,
+    missing_numeric_count: missingNumericCount,
     states,
     totals: {
-      records: rows.reduce((sum, row) => sum + value(row, "记录数"), 0),
-      fields: rows.reduce((sum, row) => sum + value(row, "字段数"), 0),
-      api_tokens: rows.reduce((sum, row) => sum + value(row, "API令牌数"), 0),
-      webhooks: rows.reduce((sum, row) => sum + value(row, "Webhook数"), 0),
-      attachment_bytes: rows.reduce((sum, row) => sum + value(row, "附件的总大小（byte）"), 0)
+      records: total("记录数"), fields: total("字段数"), api_tokens: total("API令牌数"),
+      webhooks: total("Webhook数"), attachment_bytes: total("附件的总大小（byte）")
     },
     cleanup_candidate_count: candidates.length,
     cleanup_candidate_criteria: "Unpublished, zero fields, records, API tokens, inbound references, and no customization flag. Confirmation required; never delete automatically.",
@@ -152,6 +168,28 @@ function pickCapacity(value) {
   const picked = Object.fromEntries(allowed.filter((key) => key in value).map((key) => [key, value[key]]));
   if (!Object.keys(picked).length) throw new Error("Unrecognized capacity response");
   return picked;
+}
+
+export function summarizeCommonLicense(value) {
+  const payload = value?.result;
+  const mapping = { countGuest: "usedGuestCount", countMaxGuest: "maxGuestCount",
+    countSpace: "usedSpaceCount", countMaxSpace: "maxSpaceCount",
+    countGuestSpace: "usedGuestSpaceCount", countMaxGuestSpace: "maxGuestSpaceCount",
+    countApp: "usedAppCount", countMaxApp: "maxAppCount", countRecord: "usedRecordCount",
+    countMaxRecord: "maxRecordCount", countField: "usedFieldCount", countMaxField: "maxFieldCount",
+    countApiRequest: "usedApiRequestCount", countMaxApiRequest: "maxApiRequestCount" };
+  if (!payload || !Object.keys(mapping).every((key) => /^(?:[0-9]+|-1)$/.test(String(payload[key])))) {
+    throw new Error("Unrecognized common license response");
+  }
+  return Object.fromEntries(Object.entries(mapping).map(([key, output]) => [output, Number(payload[key])]));
+}
+
+export function summarizeSharedSettings(value) {
+  const settings = value?.result?.settings;
+  const management = settings?.prohibitGrantAppManagementPermissionToEveryoneGroup;
+  const recordExport = settings?.prohibitGrantExportRecordsPermissionToEveryoneGroup;
+  if (typeof management !== "boolean" || typeof recordExport !== "boolean") throw new Error("Unrecognized shared App settings response");
+  return { prohibit_everyone_app_management: management, prohibit_everyone_record_export: recordExport };
 }
 
 function configured(value) {
@@ -279,9 +317,12 @@ export async function collectAdminUiDerived({ workspace, environmentId, outputDi
     try {
       const response = await request(resource);
       if (JSON_FIELDS[resource.key]) validateJsonResource(resource.key, response.text);
-      if (resource.key === "app_directory") directory = summarizeDirectory(parseCsv(response.text));
+      if (resource.key === "app_directory") {
+        directory = summarizeDirectory(parseCsv(response.text));
+        if (directory.missing_numeric_count) unknowns.push({ source: "app_directory", error: `${directory.missing_numeric_count} numeric directory value(s) missing; preserved as unknown, not zero` });
+      }
       else if (resource.key === "app_capacity") capacity = pickCapacity(JSON.parse(response.text));
-      else if (resource.key === "common_license") common = { ...(common ?? {}), license: pickCapacity(JSON.parse(response.text)) };
+      else if (resource.key === "common_license") common = { ...(common ?? {}), license: summarizeCommonLicense(JSON.parse(response.text)) };
       else if (resource.key === "system_admin") {
         system = pageObservation(response);
         unknowns.push({ source: "system_admin", error: "System menu is reachable, but its page-specific settings parsers are not implemented yet" });
@@ -309,11 +350,7 @@ export async function collectAdminUiDerived({ workspace, environmentId, outputDi
         system = { ...(system ?? {}), guests: { ...(system?.guests ?? {}), two_step_verification_enabled: value.useTwoStepVerify ?? null } };
       }
       else if (resource.key === "shared_app_settings") {
-        const value = result(JSON.parse(response.text));
-        system = { ...(system ?? {}), shared_app_settings: {
-          prohibit_everyone_app_management: value.prohibitGrantAppManagementPermissionToEveryoneGroupEnabled ?? null,
-          prohibit_everyone_record_export: value.prohibitGrantExportRecordsPermissionToEveryoneGroupEnabled ?? null
-        } };
+        system = { ...(system ?? {}), shared_app_settings: summarizeSharedSettings(JSON.parse(response.text)) };
       }
       else if (resource.key === "system_monitoring") {
         const value = result(JSON.parse(response.text));
@@ -346,7 +383,7 @@ export async function collectAdminUiDerived({ workspace, environmentId, outputDi
         common = { ...(common ?? {}), security_audit: { ...(common?.security_audit ?? {}), api_token_coverage: "page-reachable-no-reviewed-list-parser" } };
         unknowns.push({ source: "api_tokens", error: "API token administration page is reachable, but no reviewed token-list parser is implemented" });
       }
-      const status = resource.key === "api_tokens" ? "unsupported" : resource.key === "system_admin" ? "partial" : "complete";
+      const status = resource.key === "api_tokens" ? "unsupported" : resource.key === "system_admin" || (resource.key === "app_directory" && directory.missing_numeric_count) ? "partial" : "complete";
       coverage.push({ resource: resource.key, status, response_shape: resource.key.includes("admin") ? "HTML or reviewed JSON" : "CSV or JSON" });
       checkpoint(resource.key, status, { app_directory: resource.key === "app_directory" ? directory : null,
         capacity: resource.key === "app_capacity" ? capacity : null, system_admin: system, common_admin: common });

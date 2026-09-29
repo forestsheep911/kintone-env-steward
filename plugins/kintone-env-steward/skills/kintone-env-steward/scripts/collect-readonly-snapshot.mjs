@@ -184,7 +184,7 @@ function startMcp(extraEnvironment) {
       const message =
         result.content?.find(({ type }) => type === "text")?.text ??
         `Official MCP tool failed: ${name}`;
-      throw new CollectionError(/(?:403|401|CB_NO02|GAIA_NO01)/.test(message) ? "forbidden" : "request-failed", "Official MCP tool failed");
+      throw new CollectionError(/GAIA_IL23/.test(message) ? "unsupported" : /(?:403|401|CB_NO02|GAIA_NO01)/.test(message) ? "forbidden" : "request-failed", "Official MCP tool failed");
     }
     const data = extractStructured(result);
     if (!data || typeof data !== "object" || data.text) throw new CollectionError("parse-failed", "Unrecognized MCP response");
