@@ -32,8 +32,8 @@ export function deriveSystemClusters(apps) {
   const included = new Set(components.flat());
   const candidates = components
     .sort((left, right) => right.length - left.length || compareIds(left[0], right[0]))
-    .map((appIds, index) => ({
-      id: `relationship-${index + 1}`,
+    .map((appIds) => ({
+      id: `relationship-apps-${appIds.join("-")}`,
       kind: "connected-system",
       confidence: "high",
       app_ids: appIds,

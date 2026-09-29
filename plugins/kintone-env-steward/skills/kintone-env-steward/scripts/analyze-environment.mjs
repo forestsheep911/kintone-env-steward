@@ -6,6 +6,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { parseYaml } from "./yaml-lite.mjs";
+import { randomUUID } from "node:crypto";
 
 const args = process.argv.slice(2);
 function option(name) {
@@ -35,7 +36,7 @@ if (!environment) {
   process.exit(1);
 }
 
-const runId = new Date().toISOString().replace(/[:.]/g, "-");
+const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID()}`;
 const artifactRoot = path.resolve(workspace, config.engagement.artifactRoot);
 const workspaceBoundary = `${workspace}${path.sep}`;
 if (!artifactRoot.startsWith(workspaceBoundary)) {
@@ -67,9 +68,11 @@ try {
     environmentId,
     "--output",
     outputDir,
+    "--run-id", runId,
   ];
   const concurrency = option("--concurrency");
   if (concurrency) collectorArgs.push("--concurrency", concurrency);
+  if (option("--resume-from")) collectorArgs.push("--resume-from", option("--resume-from"));
   if (args.includes("--include-admin-ui")) collectorArgs.push("--include-admin-ui");
   if (args.includes("--include-app-settings")) collectorArgs.push("--include-app-settings");
   await run("collect-readonly-snapshot.mjs", collectorArgs);

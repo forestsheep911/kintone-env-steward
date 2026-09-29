@@ -47,7 +47,18 @@ function severityRank(severity) {
   return { critical: 0, high: 1, medium: 2, low: 3, info: 4 }[severity] ?? 9;
 }
 
+function knownSum(values) {
+  return values.every((value) => Number.isInteger(value) && value >= 0)
+    ? values.reduce((sum, value) => sum + value, 0) : null;
+}
+
+const booleanLabel = (value) => value === true ? "是" : value === false ? "否" : "未知";
+
 export function buildReportModel(snapshot, { businessSystemMap = null } = {}) {
+  if (businessSystemMap && (!snapshot.target?.environment_id ||
+      businessSystemMap.environment_id !== snapshot.target.environment_id)) {
+    throw new Error("Business system map environment does not match snapshot environment");
+  }
   const deploymentByApp = new Map(
     (snapshot.deployment?.apps ?? []).map(({ app, status }) => [String(app), status]),
   );
@@ -129,8 +140,8 @@ export function buildReportModel(snapshot, { businessSystemMap = null } = {}) {
         fieldPermissionRules: configuration.audit?.field_permissions?.rule_count ?? null,
         pluginCount: configuration.audit?.plugins?.count ?? null,
         actionCount: configuration.audit?.actions?.count ?? null,
-        notificationRuleCount: ["general_notifications", "per_record_notifications", "reminder_notifications"].reduce((sum, key) => sum + Number(configuration.audit?.[key]?.rule_count ?? 0), 0),
-        customizationFileCount: ["desktop", "mobile"].reduce((sum, device) => sum + Number(configuration.audit?.customization?.[device]?.js_count ?? 0) + Number(configuration.audit?.customization?.[device]?.css_count ?? 0), 0),
+        notificationRuleCount: knownSum(["general_notifications", "per_record_notifications", "reminder_notifications"].map((key) => configuration.audit?.[key]?.rule_count)),
+        customizationFileCount: knownSum(["desktop", "mobile"].flatMap((device) => [configuration.audit?.customization?.[device]?.js_count, configuration.audit?.customization?.[device]?.css_count])),
         adminNotePresent: configuration.audit?.admin_notes?.present ?? null,
         externalCustomizationHosts: [...new Set([...(configuration.audit?.customization?.desktop?.external_hosts ?? []), ...(configuration.audit?.customization?.mobile?.external_hosts ?? [])])],
         everyonePermissions: configuration.audit?.app_permissions?.everyone_permission_rule_counts ?? null,
@@ -250,7 +261,7 @@ export function buildReportModel(snapshot, { businessSystemMap = null } = {}) {
   if (workflowWithoutNotifications.length) {
     findings.push({ id: "GOV-OPS-002", severity: "low", confidence: "high", title: "流程管理 App 未见通知规则", observation: `${workflowWithoutNotifications.length} 个启用流程管理的 App 的一般、记录条件和提醒通知规则数均为 0。`, assessment: "这不是配置错误：团队可能使用 Space、邮件、插件或人工流程通知。应确认关键状态变更是否有明确的知会与升级机制。", appIds: workflowWithoutNotifications.map(({ id }) => id) });
   }
-  const pluginsWithoutGovernanceNote = apps.filter(({ audit, descriptionPresent }) => audit.pluginCount > 0 && !audit.adminNotePresent && !descriptionPresent);
+  const pluginsWithoutGovernanceNote = apps.filter(({ audit, descriptionPresent }) => audit.pluginCount > 0 && audit.adminNotePresent === false && !descriptionPresent);
   if (pluginsWithoutGovernanceNote.length) {
     findings.push({ id: "GOV-CUST-003", severity: "low", confidence: "high", title: "挂载插件的 App 缺少用途或管理说明", observation: `${pluginsWithoutGovernanceNote.length} 个挂载插件的 App 同时没有用途说明和管理员备注。`, assessment: "这不评价插件本身安全性；应补充插件用途、负责人、许可证/来源、变更和停用回退信息。", appIds: pluginsWithoutGovernanceNote.map(({ id }) => id) });
   }
@@ -276,7 +287,7 @@ export function buildReportModel(snapshot, { businessSystemMap = null } = {}) {
       appIds: [],
     });
   }
-  if (commonSecurity?.audit && !commonSecurity.audit.critical_notification_configured && !commonSecurity.audit.information_notification_configured) {
+  if (commonSecurity?.audit?.critical_notification_configured === false && commonSecurity.audit.information_notification_configured === false) {
     findings.push({
       id: "GOV-AUDIT-002",
       severity: "medium",
@@ -293,7 +304,7 @@ export function buildReportModel(snapshot, { businessSystemMap = null } = {}) {
       severity: "low",
       confidence: "high",
       title: "双因素验证未完全启用或强制",
-      observation: `TOTP 已启用：${commonSecurity.login.totp_enabled ? "是" : "否"}；已强制：${commonSecurity.login.totp_enforced ? "是" : "否"}。`,
+      observation: `TOTP 已启用：${booleanLabel(commonSecurity.login.totp_enabled)}；已强制：${booleanLabel(commonSecurity.login.totp_enforced)}。`,
       assessment: "这不是单独的合规结论；应结合 SSO、网络限制、管理员账号范围和组织安全基线决定是否强制。",
       appIds: [],
     });
@@ -349,11 +360,18 @@ export function buildReportModel(snapshot, { businessSystemMap = null } = {}) {
   findings.sort((a, b) => severityRank(a.severity) - severityRank(b.severity));
 
   const systemClusters = deriveSystemClusters(apps);
-  const systemCandidates = systemClusters.candidates.map((candidate) => ({
-    ...candidate,
-    ...(businessSystemMap?.systems?.find(({ id }) => id === candidate.id) ?? {}),
-    apps: candidate.app_ids.map((id) => ({ id, name: apps.find((app) => app.id === id)?.name ?? "未知 App" }))
-  }));
+  const membership = (ids) => JSON.stringify([...ids].sort());
+  const systemCandidates = systemClusters.candidates.map((candidate) => {
+    // Membership, not a legacy ordinal ID, identifies a reviewed candidate.
+    const reviewed = businessSystemMap?.systems?.find((system) =>
+      membership(system.app_ids) === membership(candidate.app_ids));
+    return {
+      ...candidate,
+      ...reviewed,
+      id: candidate.id,
+      apps: candidate.app_ids.map((id) => ({ id, name: apps.find((app) => app.id === id)?.name ?? "未知 App" }))
+    };
+  });
 
   const categories = Object.entries(
     apps.reduce((groups, app) => {

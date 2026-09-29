@@ -16,6 +16,8 @@ dumps/
 *.db
 *.sqlite
 *.sqlite3
+*.sqlite-wal
+*.sqlite-shm
 node_modules/
 dist/
 !plugins/kintone-env-steward/skills/kintone-env-steward/assets/config-ui/dist/

@@ -32,12 +32,33 @@ const SAFE_RESOURCES = [
   { key: "administrators", method: "GET", path: "/admin/administrators" },
 ];
 
+const JSON_FIELDS = {
+  system_customization: ["active", "executable", "scripts"],
+  system_plugins: ["marketPlugins", "importPlugins", "appMap", "available"],
+  space_capacity: ["maxSpaceCount", "usedSpaceCount", "maxGuestSpaceCount", "usedGuestSpaceCount"],
+  guest_capacity: ["countMaxGuest", "countPaid", "countTrial"],
+  guest_count: ["count"], guest_auth: ["useTwoStepVerify"],
+  shared_app_settings: ["prohibitGrantAppManagementPermissionToEveryoneGroupEnabled", "prohibitGrantExportRecordsPermissionToEveryoneGroupEnabled"],
+  system_monitoring: ["delaySeconds"], mobile_view: ["mobileViewType", "mobileViewSelectableByUser"],
+  feature_settings: ["featureSetting"], header_appearance: ["headerColorKdsAppliedEnabled"],
+  update_options: ["updateOptions", "updateChannel", "newFeatureDisabledByDefault"]
+};
+
+export function validateJsonResource(key, text) {
+  const value = JSON.parse(text);
+  const payload = value?.result;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload) ||
+      !JSON_FIELDS[key].every((field) => payload[field] != null)) {
+    throw new Error(`Unrecognized reviewed JSON shape: ${key}`);
+  }
+}
+
 function option(args, name) {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : undefined;
 }
 
-function parseCsv(text) {
+export function parseCsv(text) {
   const rows = [];
   let row = [], value = "", quoted = false;
   for (let i = 0; i < text.length; i += 1) {
@@ -54,12 +75,20 @@ function parseCsv(text) {
   }
   if (value || row.length) { row.push(value); rows.push(row); }
   const [headers = [], ...data] = rows;
+  headers[0] = headers[0]?.replace(/^\uFEFF/, "");
+  const required = ["ID", "应用名称", "状态", "记录数", "字段数", "API令牌数", "Webhook数", "附件的总大小（byte）", "自定义", "参照了此应用的应用数"];
+  if (!required.every((key) => headers.includes(key))) {
+    throw new Error("Unrecognized App directory CSV columns or locale");
+  }
+  if (data.some((cells) => cells.length !== headers.length)) throw new Error("Malformed App directory CSV row");
   return data.map((cells) => Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])));
 }
 
 function number(cell) {
+  if (cell == null || String(cell).trim() === "") throw new Error("Missing directory numeric value");
   const parsed = Number(String(cell ?? "").replaceAll(",", ""));
-  return Number.isFinite(parsed) ? parsed : 0;
+  if (!Number.isFinite(parsed) || parsed < 0) throw new Error("Invalid directory numeric value");
+  return parsed;
 }
 
 function summarizeDirectory(rows) {
@@ -97,14 +126,14 @@ function summarizeDirectory(rows) {
   };
 }
 
-function pageJson(html, key) {
+export function pageJson(html, key) {
   const marker = `cybozu.data.page['${key}'] =`;
   const start = html.indexOf(marker);
-  if (start < 0) return null;
+  if (start < 0) throw new Error(`Missing reviewed page data: ${key}`);
   const end = html.indexOf(";", start + marker.length);
-  if (end < 0) return null;
+  if (end < 0) throw new Error(`Unterminated reviewed page data: ${key}`);
   try { return JSON.parse(html.slice(start + marker.length, end).trim()); }
-  catch { return null; }
+  catch { throw new Error(`Invalid reviewed page data: ${key}`); }
 }
 
 function pageObservation(response, allowedPageData = []) {
@@ -118,10 +147,13 @@ function pickCapacity(value) {
   if (value?.result && typeof value.result === "object") value = value.result;
   if (!value || typeof value !== "object") return null;
   const allowed = ["maxAppCount", "usedAppCount", "maxRecordCount", "usedRecordCount", "maxFieldCount", "usedFieldCount", "maxCustomizedAppCount", "usedCustomizedAppCount", "maxSpaceCount", "usedSpaceCount", "maxGuestSpaceCount", "usedGuestSpaceCount", "maxApiRequestCount", "usedApiRequestCount"];
-  return Object.fromEntries(allowed.filter((key) => key in value).map((key) => [key, value[key]]));
+  const picked = Object.fromEntries(allowed.filter((key) => key in value).map((key) => [key, value[key]]));
+  if (!Object.keys(picked).length) throw new Error("Unrecognized capacity response");
+  return picked;
 }
 
 function configured(value) {
+  if (value == null) throw new Error("Missing reviewed audit setting");
   return String(value ?? "").trim().length > 0;
 }
 
@@ -224,7 +256,7 @@ function updateOptionSummary(value) {
   return { update_channel: setting.updateChannel ?? null, new_feature_disabled_by_default: setting.newFeatureDisabledByDefault ?? null, categories };
 }
 
-export async function collectAdminUiDerived({ workspace, environmentId, outputDir }) {
+export async function collectAdminUiDerived({ workspace, environmentId, outputDir, checkpoint = () => {} }) {
   const config = parseYaml(await readFile(path.join(workspace, ".kintone-env-steward", "environments.yaml"), "utf8"));
   const environment = config.environments?.find(({ id }) => id === environmentId);
   if (!environment) throw new Error(`Unknown environment: ${environmentId}`);
@@ -247,6 +279,7 @@ export async function collectAdminUiDerived({ workspace, environmentId, outputDi
   for (const resource of SAFE_RESOURCES) {
     try {
       const response = await request(resource);
+      if (JSON_FIELDS[resource.key]) validateJsonResource(resource.key, response.text);
       if (resource.key === "app_directory") directory = summarizeDirectory(parseCsv(response.text));
       else if (resource.key === "app_capacity") capacity = pickCapacity(JSON.parse(response.text));
       else if (resource.key === "common_license") common = { ...(common ?? {}), license: pickCapacity(JSON.parse(response.text)) };
@@ -316,9 +349,12 @@ export async function collectAdminUiDerived({ workspace, environmentId, outputDi
       }
       const status = ["system_admin", "api_tokens"].includes(resource.key) ? "partial" : "complete";
       coverage.push({ resource: resource.key, status, response_shape: resource.key.includes("admin") ? "HTML or reviewed JSON" : "CSV or JSON" });
+      checkpoint(resource.key, status, { app_directory: resource.key === "app_directory" ? directory : null,
+        capacity: resource.key === "app_capacity" ? capacity : null, system_admin: system, common_admin: common });
     } catch (error) {
       coverage.push({ resource: resource.key, status: "unavailable" });
       unknowns.push({ source: resource.key, error: error.message });
+      checkpoint(resource.key, "failed", null);
     }
   }
   if (directory) directory.capacity = capacity;

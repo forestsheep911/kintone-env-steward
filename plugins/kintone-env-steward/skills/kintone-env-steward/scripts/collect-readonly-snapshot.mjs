@@ -7,6 +7,8 @@ import process from "node:process";
 import { parseYaml } from "./yaml-lite.mjs";
 import { collectAdminUiDerived } from "./collect-admin-ui-derived.mjs";
 import { collectAppSettingsAudit } from "./collect-app-settings-audit.mjs";
+import { ScanStore, databasePath } from "./scan-store.mjs";
+import { randomUUID } from "node:crypto";
 
 const MCP_PACKAGE = "@kintone/mcp-server@1.9.0";
 const ALLOWED_TOOLS = new Set([
@@ -272,7 +274,7 @@ async function main() {
     environment,
   );
 
-  const runId = new Date().toISOString().replace(/[:.]/g, "-");
+  const runId = option("--run-id") ?? `${new Date().toISOString().replace(/[:.]/g, "-")}-${randomUUID()}`;
   const artifactRoot = ensureInsideWorkspace(
     path.resolve(workspace, config.engagement.artifactRoot),
     "engagement.artifactRoot",
@@ -284,7 +286,15 @@ async function main() {
     "snapshot output",
   );
 
+  const store = new ScanStore(databasePath(workspace));
+  let run;
+  try {
+    run = store.start(runId, { environmentId: environment.id, baseUrl: environment.baseUrl,
+      appScope: environment.appScope, includeAdminUi, includeAppSettings }, option("--resume-from"));
+  } catch (error) { store.close(); throw error; }
   const mcp = startMcp(authEnvironment);
+  const callTool = (name, toolArguments) => store.capture(run,
+    `mcp:${name}:${JSON.stringify(toolArguments)}`, () => mcp.callTool(name, toolArguments));
   try {
     console.log(`Environment: ${environment.id} (${environment.label})`);
     console.log(`Boundary: ${environment.accessMode}; records: not collected`);
@@ -301,7 +311,7 @@ async function main() {
       );
     }
 
-    const inventory = await collectApps(mcp.callTool, environment.appScope);
+    const inventory = await collectApps(callTool, environment.appScope);
     const apps = inventory.apps;
     const unknowns = inventory.unknowns;
     const configurations = {};
@@ -313,7 +323,7 @@ async function main() {
           const entries = await Promise.all(
             Object.entries(CONFIG_TOOLS).map(async ([key, [name, makeArguments]]) => {
               try {
-                return [key, await mcp.callTool(name, makeArguments(String(appId)))];
+                return [key, await callTool(name, makeArguments(String(appId)))];
               } catch (error) {
                 unknowns.push({
                   appId: String(appId),
@@ -332,7 +342,7 @@ async function main() {
     }
 
     const deployment = await collectDeployment(
-      mcp.callTool,
+      callTool,
       apps.map(({ appId }) => String(appId)),
       unknowns,
     );
@@ -340,18 +350,22 @@ async function main() {
     if (includeAppSettings) {
       if (!saved.username || !saved.password) throw new Error("App-setting REST audit requires locally configured username and password");
       const authorization = Buffer.from(`${saved.username}:${saved.password}`, "utf8").toString("base64");
-      appSettingsAudit = await collectAppSettingsAudit({ baseUrl: environment.baseUrl, authorization, appIds: apps.map(({ appId }) => String(appId)), concurrency: Math.min(concurrency, 4) });
+      appSettingsAudit = await collectAppSettingsAudit({ baseUrl: environment.baseUrl, authorization, appIds: apps.map(({ appId }) => String(appId)), concurrency: Math.min(concurrency, 4), capture: (key, collect) => store.capture(run, key, collect) });
       unknowns.push(...appSettingsAudit.unknowns);
       for (const [appId, audit] of Object.entries(appSettingsAudit.byApp)) configurations[appId].audit = audit;
     }
     let adminUiCoverage = null;
     if (includeAdminUi) {
       try {
-        adminUiCoverage = await collectAdminUiDerived({ workspace, environmentId, outputDir });
+        adminUiCoverage = await collectAdminUiDerived({ workspace, environmentId, outputDir,
+          checkpoint: (key, status, data) => store.save(runId, `admin-ui:${key}`, status, data) });
+        // Admin adapters retain summary evidence only; rerun this experimental phase on resume.
+        store.save(runId, "admin-ui:summary", adminUiCoverage.status, adminUiCoverage);
         if (adminUiCoverage.status !== "complete") {
           unknowns.push({ source: "admin-ui-derived", error: "One or more UI-derived administration resources were unavailable" });
         }
       } catch (error) {
+        store.save(runId, "admin-ui:summary", "failed", null);
         unknowns.push({ source: "admin-ui-derived", error: error.message });
       }
     }
@@ -395,6 +409,7 @@ async function main() {
       admin_ui_coverage: adminUiCoverage,
       unknowns,
     };
+    store.finish(runId, status, snapshot);
     await mkdir(outputDir, { recursive: true });
     const snapshotPath = path.join(outputDir, "snapshot.json");
     const runPath = path.join(outputDir, "run.json");
@@ -410,6 +425,9 @@ async function main() {
           appCount: apps.length,
           completedAppCount: completed,
           unknownCount: unknowns.length,
+          databasePath: databasePath(workspace),
+          resumedFrom: run.resumeFrom ?? null,
+          resources: store.resources(runId),
           snapshotPath,
         },
         null,
@@ -419,8 +437,13 @@ async function main() {
     );
     console.log(`Snapshot: ${snapshotPath}`);
     console.log(`Result: ${status}; App(s): ${apps.length}; unknown(s): ${unknowns.length}`);
+  } catch (error) {
+    // Preserve a finalized snapshot when only file export failed.
+    if (!store.list().find((item) => item.id === runId)?.finished_at) store.finish(runId, "failed");
+    throw error;
   } finally {
     mcp.close();
+    store.close();
   }
 }
 

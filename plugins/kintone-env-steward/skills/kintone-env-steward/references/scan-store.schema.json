@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Local scan store run contract v1",
+  "type": "object",
+  "required": ["version", "runId", "target", "status"],
+  "properties": {
+    "version": { "const": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "target": {
+      "type": "object",
+      "required": ["environmentId", "baseUrl", "appScope", "includeAdminUi", "includeAppSettings"],
+      "properties": {
+        "environmentId": { "type": "string" },
+        "baseUrl": { "type": "string" },
+        "appScope": { "type": "array", "items": { "type": "string" } },
+        "includeAdminUi": { "type": "boolean" },
+        "includeAppSettings": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "status": { "enum": ["running", "complete", "partial", "failed"] },
+    "resources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "status", "collectedAt"],
+        "properties": {
+          "key": { "type": "string" },
+          "status": { "enum": ["complete", "partial", "failed"] },
+          "collectedAt": { "type": "string" },
+          "data": {},
+          "reusedFrom": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

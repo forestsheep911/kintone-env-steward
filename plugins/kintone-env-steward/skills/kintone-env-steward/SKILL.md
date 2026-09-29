@@ -31,6 +31,16 @@ configuration console on 4317 and the report on 4318. Tell the user the exact
 report URL. Read [report-site.md](references/report-site.md) when creating or
 serving a report.
 
+The deterministic collector requires Node.js 24.16+ and stores evidence in the
+active workspace `.kintone-env-steward/scans.sqlite`, alongside the existing JSON
+exports. Use `scripts/scan-history.mjs --workspace <workspace>` to list runs or
+add `--run <run-id>` for resource status. To complete an interrupted scan, pass
+`--resume-from <run-id>` to the analysis command with the same environment, App
+scope and optional collection flags. This creates a new run reusing successful
+MCP/REST evidence with its original timestamps; it is not a fresh scan. Admin UI
+collection reruns. Omit this option when fresh evidence is needed. Credentials
+remain outside the scan database. Never commit the database or its WAL/SHM files.
+
 The current deterministic pipeline covers the published-App configuration layer.
 When an engagement explicitly requires all management-visible Apps, capacity, or
 system-governance evidence, read

@@ -21,7 +21,16 @@ const summarizePermission = (response, appLevel = false) => {
 const summarizeNotifications = (response) => ({ rule_count: (response.notifications ?? []).length, entity_types: entities(response.notifications), notify_to_commenter: response.notifyToCommenter ?? null });
 const hosts = (files) => [...new Set((files ?? []).map(({ url }) => { try { return new URL(url).host; } catch { return null; } }).filter(Boolean))].sort();
 
-function summarize(key, value) {
+export function summarize(key, value) {
+  const collection = { views: "views", graphs: "reports", app_permissions: "rights", record_permissions: "rights", field_permissions: "rights", actions: "actions", plugins: "plugins" }[key];
+  const arrayKeys = ["app_permissions", "record_permissions", "field_permissions", "plugins"];
+  if (!value || typeof value !== "object" || Array.isArray(value) ||
+      (collection && (arrayKeys.includes(key) ? !Array.isArray(value[collection]) : !value[collection] || typeof value[collection] !== "object" || Array.isArray(value[collection]))) ||
+      (key.endsWith("notifications") && !Array.isArray(value.notifications)) ||
+      (key === "admin_notes" && typeof value.content !== "string") ||
+      (key === "customization" && !["desktop", "mobile"].every((device) => ["js", "css"].every((type) => Array.isArray(value[device]?.[type]))))) {
+    throw new Error(`Unrecognized App settings response: ${key}`);
+  }
   if (key === "views") { const views = listValues(value.views); return { count: views.length, types: countBy(views, ({ type }) => type), custom_view_count: views.filter(({ type }) => type === "CUSTOM").length }; }
   if (key === "graphs") { const reports = listValues(value.reports); return { count: reports.length, types: countBy(reports, ({ chartType, type }) => chartType ?? type) }; }
   if (key === "customization") { const desktop = value.desktop ?? {}, mobile = value.mobile ?? {}; return { scope: value.scope ?? null, desktop: { js_count: (desktop.js ?? []).length, css_count: (desktop.css ?? []).length, external_hosts: [...new Set([...hosts(desktop.js), ...hosts(desktop.css)])] }, mobile: { js_count: (mobile.js ?? []).length, css_count: (mobile.css ?? []).length, external_hosts: [...new Set([...hosts(mobile.js), ...hosts(mobile.css)])] } }; }
@@ -34,7 +43,7 @@ function summarize(key, value) {
   return {};
 }
 
-export async function collectAppSettingsAudit({ baseUrl, authorization, appIds, concurrency = 4 }) {
+export async function collectAppSettingsAudit({ baseUrl, authorization, appIds, concurrency = 4, capture = (_key, collect) => collect() }) {
   const fetchSetting = async (appId, key, endpoint) => {
     const url = new URL(`/k/v1/${endpoint}.json`, baseUrl); url.searchParams.set("app", appId);
     const response = await fetch(url, { headers: { "X-Cybozu-Authorization": authorization } });
@@ -45,7 +54,7 @@ export async function collectAppSettingsAudit({ baseUrl, authorization, appIds, 
   for (let index = 0; index < appIds.length; index += concurrency) {
     await Promise.all(appIds.slice(index, index + concurrency).map(async (appId) => {
       const results = await Promise.all(Object.entries(ENDPOINTS).map(async ([key, endpoint]) => {
-        try { return [key, await fetchSetting(appId, key, endpoint)]; }
+        try { return [key, await capture(`rest:${appId}:${key}`, () => fetchSetting(appId, key, endpoint))]; }
         catch (error) { unknowns.push({ appId, source: `rest-${key}`, error: error.message }); return [key, null]; }
       }));
       byApp[appId] = Object.fromEntries(results);
